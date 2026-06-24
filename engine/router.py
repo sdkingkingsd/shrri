@@ -1,0 +1,128 @@
+import sys
+sys.path.insert(0, '/home/shrridharshan/shrri')
+
+from .key_manager import KeyManager
+from .providers import (
+    GroqProvider,
+    CerebrasProvider,
+    NvidiaProvider,
+    OllamaProvider
+)
+
+PROVIDER_PRIORITY = ["groq", "cerebras", "nvidia", "ollama"]
+
+TASK_ROUTING = {
+    "fast":     ["groq", "cerebras", "ollama"],
+    "long":     ["nvidia", "groq", "ollama"],
+    "code":     ["nvidia", "groq", "cerebras", "ollama"],
+    "reason":   ["nvidia", "groq", "ollama"],
+    "default":  ["groq", "cerebras", "nvidia", "ollama"],
+}
+
+
+def _get_search_context(message: str) -> str:
+    try:
+        from tools.search import smart_search
+        result = smart_search(message)
+        return result
+    except Exception as e:
+        print(f"[SHRRI] Search tool error: {e}")
+        return ""
+
+
+def _get_tool_context(message: str) -> str:
+    try:
+        from tools.dispatcher import detect_intent, run_tool
+        intent = detect_intent(message)
+        if intent["tool"] != "none":
+            print(f"[SHRRI] Tool triggered: {intent['tool']} → {intent['action']}")
+            return run_tool(intent, message)
+        return ""
+    except Exception as e:
+        print(f"[SHRRI] Tool dispatcher error: {e}")
+        return ""
+
+
+class Router:
+    def __init__(self):
+        self.km = KeyManager()
+
+    def _get_provider(self, provider_name, api_key):
+        if provider_name == "groq":
+            return GroqProvider(api_key)
+        elif provider_name == "cerebras":
+            return CerebrasProvider(api_key)
+        elif provider_name == "nvidia":
+            base_url = self.km.get_base_url("nvidia")
+            return NvidiaProvider(api_key, base_url)
+        elif provider_name == "ollama":
+            base_url = self.km.get_base_url("ollama") or "http://localhost:11434"
+            return OllamaProvider(base_url)
+        return None
+
+    def chat(self, message, task="default", history=None, system=None, web_search=True):
+        priority = TASK_ROUTING.get(task, TASK_ROUTING["default"])
+
+        context = ""
+        if web_search:
+            # Tool dispatcher first (Gmail, Calendar, etc.)
+            context = _get_tool_context(message)
+            # Web search only if no tool handled it
+            if not context:
+                context = _get_search_context(message)
+                if context:
+                    print(f"[SHRRI] Web search triggered...")
+
+        if context:
+            enriched_message = (
+                f"{message}\n\n"
+                f"[Live Data — use this to answer accurately]:\n"
+                f"{context}"
+            )
+        else:
+            enriched_message = message
+
+        for provider_name in priority:
+            try:
+                if provider_name == "ollama":
+                    model = self.km.get_model("ollama")
+                    base_url = self.km.get_base_url("ollama") or "http://localhost:11434"
+                    provider = OllamaProvider(base_url)
+                    response = provider.chat(enriched_message, model, history=history, system=system)
+                    print(f"[SHRRI] Used: ollama ({model})")
+                    return response
+
+                tried_ids = set()
+
+                while True:
+                    api_key, key_id = self.km.get_best_key(provider_name, exclude_ids=tried_ids)
+                    if not api_key or api_key.startswith("YOUR_"):
+                        break
+
+                    model = self.km.get_model(provider_name, task)
+                    if not model:
+                        model = self.km.get_model(provider_name)
+
+                    provider = self._get_provider(provider_name, api_key)
+                    if not provider:
+                        break
+
+                    try:
+                        response = provider.chat(enriched_message, model, history=history, system=system)
+                        self.km.mark_used(key_id)
+                        print(f"[SHRRI] Used: {provider_name} ({model}) [{key_id}]")
+                        return response
+                    except Exception as e:
+                        print(f"[SHRRI] {provider_name} key {key_id} failed: {e} — trying next key...")
+                        self.km.mark_cooldown(key_id, seconds=60)
+                        tried_ids.add(key_id)
+                        continue
+
+            except Exception as e:
+                print(f"[SHRRI] {provider_name} failed: {e} — trying next provider...")
+                continue
+
+        return "ERROR: All providers failed. Check your keys and internet connection."
+
+    def status(self):
+        return self.km.get_status()

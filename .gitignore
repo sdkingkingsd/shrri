@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+*.enc
+.shrri/
+*.db
+*.log
+node_modules/
+.DS_Store
+subprocess
+sys
+time
