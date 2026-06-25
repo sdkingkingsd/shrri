@@ -117,7 +117,7 @@ def relative_date_calc(message: str, reference_date: datetime = None) -> str:
             anchor = ref - timedelta(days=1)
         elif anchor_word == "tomorrow":
             anchor = ref + timedelta(days=1)
-        offset = n if direction in ("after", "from") else -n
+        offset = n if direction in ("after", "from", "from today") else -n
         result = add_days(anchor, offset)
         return f"📅 {describe_date(result)} ({result.strftime('%Y-%m-%d')})"
 
