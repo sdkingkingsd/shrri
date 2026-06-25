@@ -1,3 +1,4 @@
+import re
 """
 Step-by-step reasoning + constraint verification for SHRRI.
 
@@ -73,17 +74,19 @@ def truncate_at_first_repeat(text: str) -> str:
 def needs_reasoning_mode(message: str, agent_category: str) -> bool:
     """Decide whether this message should go through the reasoning+verify path."""
     msg = message.strip().lower()
-
     # Explicit opt-in — always honored regardless of category
     if msg.startswith("think:") or msg.startswith("verify:"):
         return True
-
+    # Simple one-fact questions never need reasoning mode — just answer directly.
+    simple_starters = ("what is ", "what are ", "what's ", "who is ", "who was ",
+                       "where is ", "where was ", "when is ", "when was ",
+                       "which is ", "how many ", "how much ")
+    if any(msg.startswith(s) for s in simple_starters) and len(msg.split()) <= 12:
+        return False
     # Auto-trigger for categories prone to multi-step reasoning errors
     if agent_category in ("research", "plan"):
         return True
-
     return False
-
 
 def strip_trigger_prefix(message: str) -> str:
     """Remove 'think:' / 'verify:' prefix before sending to the model."""

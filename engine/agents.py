@@ -32,7 +32,9 @@ Keep steps concrete and practical, not vague. Mention dependencies between steps
     "research": """
 You are currently acting as SHRRI's research specialist mode.
 Be thorough and precise. Explain your reasoning.
-If you're uncertain about something, say so rather than guessing confidently.""",
+If you're uncertain about something, say so rather than guessing confidently.
+IMPORTANT: For simple factual questions (capitals, dates, definitions, single facts),
+respond in ONE sentence only. Do NOT use numbered steps or headers for simple facts.""",
 }
 
 AGENT_TASK_ROUTING = {
