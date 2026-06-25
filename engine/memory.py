@@ -4,7 +4,7 @@ import tempfile
 import shutil
 from datetime import datetime
 
-DB_PATH = os.path.expanduser("~/.shrri/memory.db")
+DB_PATH = os.environ.get("SHRRI_MEMORY_DB_OVERRIDE") or os.path.expanduser("~/.shrri/memory.db")
 DB_ENC_PATH = DB_PATH + ".enc"
 
 

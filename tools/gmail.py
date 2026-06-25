@@ -71,6 +71,68 @@ def read_emails(max_results=5, query="is:unread"):
         return f"Gmail error: {str(e)}"
 
 
+def list_recent_subjects(max_results=10, query=""):
+    """List recent email subjects with their Gmail message IDs — cheap, metadata-only call."""
+    try:
+        service = get_gmail_service()
+        results = service.users().messages().list(
+            userId="me", maxResults=max_results, q=query
+        ).execute()
+
+        messages = results.get("messages", [])
+        items = []
+        for msg in messages:
+            msg_data = service.users().messages().get(
+                userId="me",
+                id=msg["id"],
+                format="metadata",
+                metadataHeaders=["From", "Subject"]
+            ).execute()
+            headers = msg_data.get("payload", {}).get("headers", [])
+            subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
+            sender = next((h["value"] for h in headers if h["name"] == "From"), "Unknown")
+            items.append({"id": msg["id"], "subject": subject, "sender": sender})
+        return items
+    except Exception as e:
+        print(f"[Gmail] list_recent_subjects error: {e}")
+        return []
+
+
+def read_email_body_by_id(message_id: str) -> str:
+    """Read the full body of a specific email by its exact Gmail message ID."""
+    try:
+        service = get_gmail_service()
+        msg_data = service.users().messages().get(
+            userId="me", id=message_id, format="full"
+        ).execute()
+
+        headers = msg_data.get("payload", {}).get("headers", [])
+        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "No Subject")
+        sender = next((h["value"] for h in headers if h["name"] == "From"), "Unknown")
+
+        body = ""
+        payload = msg_data.get("payload", {})
+        parts = payload.get("parts", [])
+
+        if parts:
+            for part in parts:
+                if part.get("mimeType") == "text/plain":
+                    data = part.get("body", {}).get("data", "")
+                    if data:
+                        body = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                        break
+        else:
+            data = payload.get("body", {}).get("data", "")
+            if data:
+                body = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+
+        body = body.strip()[:800]
+        return f"📩 From: {sender}\nSubject: {subject}\n\n{body}"
+
+    except Exception as e:
+        return f"Error reading email body: {str(e)}"
+
+
 def read_email_body(query: str = "is:unread", index: int = 0) -> str:
     try:
         service = get_gmail_service()

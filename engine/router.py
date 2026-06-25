@@ -82,6 +82,8 @@ class Router:
         else:
             enriched_message = message
 
+        
+
         for provider_name in priority:
             try:
                 if provider_name == "ollama":

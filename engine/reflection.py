@@ -91,26 +91,70 @@ class ReflectionEngine:
         self.conn.commit()
 
     def get_relevant_lessons(self, message: str) -> str:
-        """Pull lessons relevant to current message."""
+        """Pull lessons that are actually relevant to the current message.
+
+        Old behavior dumped the top-10 most-used patterns/reflections
+        regardless of topic — meaning unrelated noise (e.g. 'hi', or old
+        Gmail test queries) got injected into every single prompt, including
+        ones about completely unrelated topics, and competed with real live
+        data for the model's limited attention. This caused real factual
+        hallucinations (e.g. confusing a real internship email with a
+        nonexistent 'shopping promotional email').
+
+        Now we only include entries that share real keyword overlap with
+        the current message — filtering out common filler/connector words
+        first, so something like "explain the mail about the internship"
+        can't false-match against an unrelated stored phrase just because
+        both happen to contain the word "about".
+        """
+        # Common connector/filler words that happen to be longer than 3 chars
+        # but carry no real topical meaning on their own.
+        STOPWORDS = {
+            "about", "this", "that", "what", "when", "where", "which",
+            "with", "from", "your", "their", "there", "they", "them",
+            "have", "does", "doing", "tell", "show", "give", "want",
+            "just", "like", "would", "could", "should", "please",
+            "explain", "details", "detail",
+        }
+
+        def extract_words(text):
+            return set(
+                w.lower() for w in (text or "").split()
+                if len(w) > 3 and w.lower() not in STOPWORDS
+            )
+
+        msg_words = extract_words(message)
+        if not msg_words:
+            return ""
+
         rows = self.conn.execute(
-            "SELECT learned FROM reflections ORDER BY id DESC LIMIT 10"
+            "SELECT situation, learned FROM reflections ORDER BY id DESC LIMIT 30"
+        ).fetchall()
+        patterns = self.conn.execute(
+            "SELECT user_phrase, tool, action, success_count FROM patterns ORDER BY success_count DESC LIMIT 30"
         ).fetchall()
 
-        patterns = self.conn.execute(
-            "SELECT user_phrase, tool, action, success_count FROM patterns ORDER BY success_count DESC LIMIT 10"
-        ).fetchall()
+        relevant_lessons = []
+        for situation, learned in rows:
+            sit_words = extract_words(situation)
+            if msg_words & sit_words:
+                relevant_lessons.append(learned)
+
+        relevant_patterns = []
+        for phrase, tool, action, count in patterns:
+            phrase_words = extract_words(phrase)
+            if msg_words & phrase_words:
+                relevant_patterns.append((phrase, tool, action, count))
 
         output = ""
-
-        if rows:
-            output += "📚 Past lessons:\n"
-            for r in rows:
-                output += f"  - {r[0]}\n"
-
-        if patterns:
-            output += "\n🧠 Learned patterns:\n"
-            for p in patterns:
-                output += f"  - '{p[0]}' → {p[1]}/{p[2]} (used {p[3]}x)\n"
+        if relevant_lessons:
+            output += "📚 Relevant past lessons (only shown because they match this topic):\n"
+            for l in relevant_lessons[:3]:
+                output += f"  - {l}\n"
+        if relevant_patterns:
+            output += "\n🧠 Relevant past patterns (only shown because they match this topic):\n"
+            for phrase, tool, action, count in relevant_patterns[:3]:
+                output += f"  - '{phrase}' → {tool}/{action} (used {count}x)\n"
 
         return output
 

@@ -2,6 +2,7 @@ import sys
 sys.path.insert(0, '/home/shrridharshan/shrri')
 from engine import SHRRIEngine
 from engine.experience import Experience
+from tools.voice_input import listen as voice_listen
 
 
 def main():
@@ -15,6 +16,8 @@ def main():
     print("  Type 'experiences' to see what SHRRI remembers trying")
     print("  Type 'index' to scan ~/shrri/knowledge/ for new documents")
     print("  Type 'learned' to see what SHRRI has learned about you")
+    print("  Type 'diagnose' to see what SHRRI is struggling with and suggested fixes")
+    print("  Type 'voice' to speak instead of typing")
     print("=" * 50)
     sys.stdout.flush()
 
@@ -45,6 +48,27 @@ def main():
         if user_input.lower() == "learned":
             e.learned()
             sys.stdout.flush()
+            continue
+
+        if user_input.lower() == "diagnose":
+            e.diagnose()
+            sys.stdout.flush()
+            continue
+
+        if user_input.lower() == "voice":
+            try:
+                spoken_text = voice_listen()
+            except Exception as ex:
+                print(f"SHRRI: Voice input failed — {ex}", flush=True)
+                continue
+
+            if not spoken_text:
+                print("SHRRI: I didn't catch that — nothing was transcribed.", flush=True)
+                continue
+
+            print(f"\nYou (voice): {spoken_text}", flush=True)
+            response = e.chat(spoken_text)
+            print(f"\nSHRRI: {response}", flush=True)
             continue
 
         if user_input.lower().startswith("worked:"):
