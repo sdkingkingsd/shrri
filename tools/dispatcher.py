@@ -4,6 +4,19 @@ import re
 def detect_intent(message: str) -> dict:
     msg = message.lower()
 
+    # Deterministic arithmetic — no AI guessing needed. This must run before
+    # other checks since a math expression won't match anything else, but we
+    # still want it caught early and routed to a real calculator instead of
+    # falling through to the LLM, which has proven unreliable at arithmetic
+    # (confirmed: invented wrong intermediate results, got stuck in
+    # self-contradiction loops trying to "verify" bad math).
+    has_arithmetic_symbols = bool(re.search(
+        r"\d+\s*(?:[\+\-\*/%\^]|times|multiplied by|plus|minus|divided by)\s*\d+",
+        msg
+    ))
+    if has_arithmetic_symbols:
+        return {"tool": "math", "action": "calculate", "params": {"query": message}}
+
     # Real system time/date — no AI guessing needed
     time_triggers = [
         "what time", "current time", "time now", "what's the time",
@@ -72,6 +85,10 @@ def run_tool(intent: dict, message: str) -> str:
     action = intent["action"]
     params = intent["params"]
 
+    if tool == "math":
+        from tools.math_tool import extract_and_calculate
+        return extract_and_calculate(params.get("query", message))
+
     if tool == "time":
         from tools.time_tool import get_current_time
         return get_current_time()
@@ -92,9 +109,6 @@ def run_tool(intent: dict, message: str) -> str:
                 return "GAP: no recent emails found to match against for read_body"
 
             # --- Step 1: cheap keyword pre-filter, no LLM call needed ---
-            # If a real, distinctive word from the user's message appears directly
-            # in a subject line, that's a much more reliable signal than asking a
-            # small LLM to pick a number out of a list — use it first.
             STOPWORDS = {
                 "the", "mail", "email", "about", "explain", "open", "show",
                 "what", "does", "this", "that", "full", "read", "body",
@@ -112,12 +126,9 @@ def run_tool(intent: dict, message: str) -> str:
 
             match_index = None
             if len(keyword_matches) == 1:
-                # Exactly one subject contains a real keyword from the user's
-                # message — confident, deterministic match, no LLM needed.
                 match_index = keyword_matches[0]
 
-            # --- Step 2: fall back to LLM matching only if keyword match was
-            # ambiguous (0 or 2+ candidates) ---
+            # --- Step 2: fall back to LLM matching only if ambiguous ---
             if match_index is None:
                 listing = "\n".join(
                     f"{i}. From: {s['sender']} | Subject: {s['subject']}"

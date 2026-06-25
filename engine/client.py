@@ -42,6 +42,19 @@ class SHRRIEngine:
         explicit_reasoning_requested = message.strip().lower().startswith(("think:", "verify:"))
         message = strip_trigger_prefix(message)
 
+        # Fast-path: deterministic tools (math, time) don't need classify,
+        # reasoning mode, or any LLM call — return the tool result directly.
+        # This also prevents the reasoning prompt from re-deriving arithmetic
+        # the tool already computed correctly.
+        from tools.dispatcher import detect_intent, run_tool
+        _intent = detect_intent(message)
+        if _intent["tool"] in ("math", "time"):
+            result = run_tool(_intent, message)
+            if result and not result.startswith("GAP:"):
+                self.memory.save_message("user", message)
+                self.memory.save_message("assistant", result)
+                return result
+
         # Detect correction — user is teaching SHRRI
         correction = self._detect_correction(message)
         if correction:

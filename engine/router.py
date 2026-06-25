@@ -74,9 +74,16 @@ class Router:
                     print(f"[SHRRI] Web search triggered...")
 
         if context:
+            # Math/time results are authoritative — the LLM must NOT re-derive them.
+            # Gmail/search results are reference context — the LLM should summarize them.
+            is_authoritative = context.startswith("🧮") or context.startswith("Current time:")
+            if is_authoritative:
+                label = "[Authoritative answer from deterministic tool — state this result directly, do NOT recalculate or re-derive]"
+            else:
+                label = "[Live Data — use this to answer accurately]"
             enriched_message = (
                 f"{message}\n\n"
-                f"[Live Data — use this to answer accurately]:\n"
+                f"{label}:\n"
                 f"{context}"
             )
         else:
