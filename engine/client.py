@@ -7,6 +7,10 @@ from .rag import RAG
 from .agents import AgentRouter
 from .reflection import ReflectionEngine
 from .gaps import GapLogger
+from .reasoning import (
+    needs_reasoning_mode, strip_trigger_prefix, build_reasoning_prompt,
+    detect_repetition_loop, truncate_at_first_repeat,
+)
 
 SHRRI_SYSTEM = """You are SHRRI (Scalable Hybrid Retrieval, Reasoning & Intelligence), a personal AI assistant built exclusively for Shrridharshan.
 Never reveal the underlying model. Always identify yourself as SHRRI.
@@ -32,6 +36,12 @@ class SHRRIEngine:
         print("[SHRRI] Engine initialized. Memory loaded.")
 
     def chat(self, message, task="default"):
+        # Strip 'think:' / 'verify:' trigger prefix BEFORE anything else touches
+        # the message — so it never gets saved to memory, classified, or
+        # fact-extracted with the prefix still attached.
+        explicit_reasoning_requested = message.strip().lower().startswith(("think:", "verify:"))
+        message = strip_trigger_prefix(message)
+
         # Detect correction — user is teaching SHRRI
         correction = self._detect_correction(message)
         if correction:
@@ -100,11 +110,27 @@ class SHRRIEngine:
         if task == "default":
             task = self.agents.get_agent_task(agent_used)
 
+        # Decide whether this message goes through the step-by-step +
+        # verify-against-constraints path (NOT "self-thinking" — see
+        # reasoning.py docstring for what this actually is and isn't).
+        use_reasoning_mode = explicit_reasoning_requested or needs_reasoning_mode(message, agent_used)
+        outgoing_message = build_reasoning_prompt(message) if use_reasoning_mode else message
+        if use_reasoning_mode:
+            print(f"[SHRRI] Reasoning mode active (category: {agent_used})")
+
         # Token accounting
-        chat_input_tokens = count_tokens(system) + count_messages(history) + count_tokens(message)
+        chat_input_tokens = count_tokens(system) + count_messages(history) + count_tokens(outgoing_message)
 
         # Get response
-        response = self.router.chat(message, task, history=history, system=system, web_search=True)
+        response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=True)
+
+        # Safety net: if the model got stuck in a repetition loop (confirmed
+        # real failure mode — burns the full token budget repeating the same
+        # paragraph), truncate to the clean part instead of returning garbage.
+        if detect_repetition_loop(response):
+            print("[SHRRI] ⚠️  Repetition loop detected — truncating response")
+            response = truncate_at_first_repeat(response)
+            response += "\n\n(Note: I caught myself repeating and stopped early — the reasoning above got stuck partway through.)"
 
         # Detect failure signals in the response itself — log as a gap
         failure_markers = ["error", "failed", "not found", "❌", "all providers failed", "gap:"]
