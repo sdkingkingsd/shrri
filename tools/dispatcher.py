@@ -82,6 +82,12 @@ def detect_intent(message: str) -> dict:
     if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
+    # Reminders
+    if any(t in msg for t in ["remind me", "set a reminder", "reminder at", "alert me"]):
+        return {"tool": "reminder", "action": "set", "params": {"query": message}}
+    if any(t in msg for t in ["my reminders", "show reminders", "list reminders"]):
+        return {"tool": "reminder", "action": "list", "params": {}}
+
     # Calendar
     calendar_today = ["today's events", "what's on my calendar", "my schedule today",
                       "calendar today", "what do i have today", "my events today",
@@ -108,6 +114,12 @@ def run_tool(intent: dict, message: str) -> str:
     tool = intent["tool"]
     action = intent["action"]
     params = intent["params"]
+
+    if tool == "reminder":
+        from tools.reminder_tool import set_reminder, list_reminders
+        if action == "list":
+            return list_reminders()
+        return set_reminder(params.get("query", message))
 
     if tool == "calendar":
         from tools.calendar_tool import get_today_events, get_upcoming_events
