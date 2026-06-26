@@ -122,7 +122,10 @@ class Router:
                         print(f"[SHRRI] Used: {provider_name} ({model}) [{key_id}]")
                         return response
                     except Exception as e:
-                        print(f"[SHRRI] {provider_name} key {key_id} failed: {e} — trying next key...")
+                        if "rate_limit" in str(e).lower() or "429" in str(e):
+                            pass  # silent rate limit — just failover
+                        else:
+                            print(f"[SHRRI] {provider_name} key {key_id} failed: {e} — trying next key...")
                         self.km.mark_cooldown(key_id, seconds=60)
                         tried_ids.add(key_id)
                         continue
