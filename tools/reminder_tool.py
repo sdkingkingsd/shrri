@@ -10,6 +10,9 @@ def _parse_time(text: str):
     """Parse time from natural language. Returns (hour, minute) or None."""
     text = text.lower().strip()
     # "at 6pm", "at 6:30pm", "at 18:00"
+    # Handle "950am" or "950 am" as 9:50 am
+    text = re.sub(r'at\s+(\d)(\d{2})\s*(am|pm)', r'at \1:\2 \3', text)
+    text = re.sub(r'at\s+(\d{2})(\d{2})\s*(am|pm)', r'at \1:\2 \3', text)
     m = re.search(r'at\s+(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?', text)
     if m:
         hour = int(m.group(1))

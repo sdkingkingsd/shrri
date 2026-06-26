@@ -10,6 +10,17 @@ from engine import SHRRIEngine
 def main():
     engine = SHRRIEngine()
 
+    # Special commands
+    if len(sys.argv) == 2 and sys.argv[1].lower() == "diagnose":
+        engine.diagnose()
+        return
+    if len(sys.argv) == 2 and sys.argv[1].lower() == "status":
+        engine.status()
+        return
+    if len(sys.argv) == 2 and sys.argv[1].lower() == "learned":
+        engine.learned()
+        return
+
     # Voice mode: shrri voice
     if len(sys.argv) == 2 and sys.argv[1].lower() == "voice":
         from tools.voice_input import listen
