@@ -31,16 +31,38 @@ def _get_search_context(message: str) -> str:
 
 
 def _classify_intent_llm(message: str) -> str:
-    """Ask the AI which tool this message needs, when keyword matching finds nothing."""
+    """Ask the AI which tool+action this message needs, when keyword matching finds nothing."""
     try:
         system = (
             "You are an intent classifier for a personal assistant called SHRRI. "
-            "Reply with ONLY one word from this exact list, nothing else:\n"
-            "whatsapp_read, whatsapp_send, email, calendar, notes, files, "
-            "youtube, weather, pyexec, system, none\n"
-            "Pick whatsapp_read for anything about checking/reading WhatsApp. "
-            "Pick whatsapp_send only if they want to send a message. "
-            "If nothing matches, reply: none"
+            "Reply with ONLY one label from this exact list, nothing else, no explanation:\n"
+            "math, time, gmail_read, gmail_send, gmail_search, whatsapp_read, whatsapp_send, "
+            "briefing, pyexec, youtube, files, system, notes_save, notes_show, notes_delete, "
+            "reminder_set, reminder_list, calendar_create, calendar_today, calendar_upcoming, "
+            "weather, none\n\n"
+            "Guidance:\n"
+            "- whatsapp_read: checking/reading WhatsApp messages, any phrasing, any language\n"
+            "- whatsapp_send: sending a WhatsApp message to someone\n"
+            "- gmail_read: checking/reading email inbox\n"
+            "- gmail_send: sending an email\n"
+            "- gmail_search: searching for a specific email\n"
+            "- notes_save: asking to save/remember/note something\n"
+            "- notes_show: asking to see saved notes\n"
+            "- notes_delete: asking to delete/remove a note\n"
+            "- reminder_set: asking to be reminded of something at a time\n"
+            "- reminder_list: asking what reminders are set\n"
+            "- calendar_create: asking to add an event/meeting\n"
+            "- calendar_today: asking what's on today's calendar\n"
+            "- calendar_upcoming: asking about upcoming days/week\n"
+            "- briefing: asking for a daily summary/briefing/good morning update\n"
+            "- pyexec: asking to run/calculate something with code\n"
+            "- youtube: asking to summarize a video\n"
+            "- files: asking to find/search files\n"
+            "- system: asking to control volume/brightness/lock screen\n"
+            "- weather: asking about weather\n"
+            "- math/time: only if no other category fits, simple calculation or current time\n"
+            "- none: casual conversation, general questions, anything not matching above\n"
+            "If unsure, prefer none over guessing wrong."
         )
         router = Router()
         result = router.chat(message, task="fast", system=system, web_search=False)
@@ -51,17 +73,29 @@ def _classify_intent_llm(message: str) -> str:
         print(f"[SHRRI] Intent classifier error: {e}")
         return "none"
 
+# Maps classifier label -> (tool, action). Must match run_tool()'s expectations exactly.
 _FALLBACK_MAP = {
-    "whatsapp_read": ("wa_read", "read"),
-    "whatsapp_send": ("whatsapp", "send"),
-    "email": ("email", "check"),
-    "calendar": ("calendar", "check"),
-    "notes": ("notes", "show"),
-    "files": ("files", "search"),
-    "youtube": ("youtube", "summarize"),
-    "weather": ("weather", "check"),
-    "pyexec": ("pyexec", "run"),
-    "system": ("system", "control"),
+    "math":              ("math", "calculate"),
+    "time":              ("time", "get_time"),
+    "gmail_read":        ("gmail", "read"),
+    "gmail_send":        ("gmail", "send"),
+    "gmail_search":      ("gmail", "search"),
+    "whatsapp_read":     ("wa_read", "read"),
+    "whatsapp_send":     ("whatsapp", "send"),
+    "briefing":          ("briefing", "get"),
+    "pyexec":            ("pyexec", "run"),
+    "youtube":           ("youtube", "summarize"),
+    "files":             ("files", "search"),
+    "system":            ("system", "control"),
+    "notes_save":        ("notes", "save"),
+    "notes_show":        ("notes", "show"),
+    "notes_delete":      ("notes", "delete"),
+    "reminder_set":      ("reminder", "set"),
+    "reminder_list":     ("reminder", "list"),
+    "calendar_create":   ("calendar", "create"),
+    "calendar_today":    ("calendar", "today"),
+    "calendar_upcoming": ("calendar", "upcoming"),
+    "weather":           ("weather", "get"),
 }
 
 def _get_tool_context(message: str) -> str:
@@ -75,7 +109,7 @@ def _get_tool_context(message: str) -> str:
         guessed = _classify_intent_llm(message)
         if guessed in _FALLBACK_MAP:
             tool, action = _FALLBACK_MAP[guessed]
-            print(f"[SHRRI] AI fallback routed to: {tool}")
+            print(f"[SHRRI] AI fallback routed to: {tool} ({action})")
             fallback_intent = {"tool": tool, "action": action, "params": {"query": message}}
             return run_tool(fallback_intent, message)
         return ""

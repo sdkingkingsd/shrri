@@ -235,8 +235,18 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "weather":
         from tools.weather_tool import get_weather
         import re as _wr
-        _wm = _wr.search(r"(?:weather|temp|temperature|forecast)\s+(?:in|for|at)?\s*(.+)", params.get("query", message), _wr.IGNORECASE)
-        location = _wm.group(1).strip() if _wm else message
+        DEFAULT_LOCATION = "Chennai"  # change to your home city if needed
+        _wm = _wr.search(r"(?:weather|temp|temperature|forecast)\s+(?:in|for|at)\s+(.+)", params.get("query", message), _wr.IGNORECASE)
+        if _wm:
+            candidate = _wm.group(1).strip()
+            # Sanity check: a real place name shouldn't contain question-ish words
+            bad_words = ["eppadi", "iruku", "how", "is", "it", "today", "now"]
+            if candidate and not any(w in candidate.lower().split() for w in bad_words) and len(candidate) < 40:
+                location = candidate
+            else:
+                location = DEFAULT_LOCATION
+        else:
+            location = DEFAULT_LOCATION
         return get_weather(location)
 
     if tool == "math":
