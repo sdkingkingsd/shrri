@@ -56,8 +56,8 @@ def read_whatsapp(message="", contact=""):
         if not rows:
             # fallback
             msgs = driver.find_elements(By.CSS_SELECTOR, "span.selectable-text.copyable-text")
-            driver.quit()
             if not msgs:
+                driver.quit()
                 return "GAP: no messages found."
             lines = ["Recent messages:"]
             seen = set()
@@ -66,6 +66,7 @@ def read_whatsapp(message="", contact=""):
                 if t and t not in seen:
                     seen.add(t)
                     lines.append("  • " + t)
+            driver.quit()
             return "\n".join(lines)
 
         lines = ["Recent WhatsApp messages" + (" from " + contact if contact else "") + ":"]

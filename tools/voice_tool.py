@@ -1,63 +1,52 @@
-"""Voice tool — Tanglish support, Indian female voice."""
-import subprocess, tempfile, os, re
+"""Voice tool — Edge TTS, NeerjaNeural Indian female, pipeline."""
+import subprocess, tempfile, os, re, asyncio
 import speech_recognition as sr
 
-def _split_tanglish(text):
-    """Split text into Tamil and English chunks."""
-    chunks = []
-    current = ""
-    current_lang = None
-    for char in text:
-        if "\u0B80" <= char <= "\u0BFF":
-            lang = "ta"
-        elif char.isascii():
-            lang = "en"
-        else:
-            lang = current_lang or "en"
-        if lang != current_lang and current.strip():
-            chunks.append((current_lang or "en", current.strip()))
-            current = char
-            current_lang = lang
-        else:
-            current += char
-            current_lang = lang
-    if current.strip():
-        chunks.append((current_lang or "en", current.strip()))
-    return chunks
+VOICE = "en-IN-NeerjaNeural"
+
+async def _speak_async(text: str):
+    import edge_tts
+    text = text.replace("SHRRI", "Shree").replace("shrri", "Shree")
+    text = re.sub(r"[*#`•]", "", text).strip()
+    if not text:
+        return
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir="/tmp") as f:
+        fname = f.name
+    communicate = edge_tts.Communicate(text, VOICE)
+    await communicate.save(fname)
+    subprocess.run(["mpg123", "-q", fname],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        os.unlink(fname)
+    except Exception:
+        pass
 
 def speak(text: str):
-    """Speak Tanglish — switches voice per chunk."""
     try:
-        from gtts import gTTS
-        text = text.replace("SHRRI", "Shree").replace("shrri", "Shree")
-        text = re.sub(r"[*#`•]", "", text).strip()
-        if not text:
-            return
+        asyncio.run(_speak_async(text))
+    except Exception:
+        # Fallback to gTTS
+        try:
+            from gtts import gTTS
+            tts = gTTS(text=text, lang="en", tld="co.in", slow=False)
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir="/tmp") as f:
+                fname = f.name
+            tts.save(fname)
+            subprocess.run(["mpg123", "-q", fname],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            os.unlink(fname)
+        except Exception:
+            subprocess.run(["espeak-ng", "-v", "en-us", text],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        chunks = _split_tanglish(text)
-
-        for lang, chunk in chunks:
-            if not chunk:
-                continue
-            tld = "co.in" if lang == "en" else "com"
-            try:
-                tts = gTTS(text=chunk, lang=lang, tld=tld, slow=False)
-                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir="/tmp") as f:
-                    fname = f.name
-                tts.save(fname)
-                subprocess.run(["mpg123", "-q", fname],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                os.unlink(fname)
-            except Exception:
-                continue
-
-    except Exception as e:
-        subprocess.run(["espeak-ng", "-v", "en-us", text],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-def listen(lang="en-IN") -> str:
-    """Listen from mic — supports Tamil and English."""
+def listen() -> str:
     r = sr.Recognizer()
+    try:
+        import ctypes
+        asound = ctypes.cdll.LoadLibrary("libasound.so")
+        asound.snd_lib_error_set_handler(ctypes.CFUNCTYPE(None)(lambda *_: None))
+    except Exception:
+        pass
     with sr.Microphone() as source:
         print("Shree: Listening...")
         r.adjust_for_ambient_noise(source, duration=1)
@@ -65,7 +54,6 @@ def listen(lang="en-IN") -> str:
             audio = r.listen(source, timeout=8, phrase_time_limit=15)
         except sr.WaitTimeoutError:
             return ""
-    # Try Tamil+English mixed recognition
     for lang_code in ["ta-IN", "en-IN"]:
         try:
             return r.recognize_google(audio, language=lang_code)

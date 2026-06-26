@@ -22,11 +22,23 @@ def main():
         return
 
     # Voice mode: shrri voice
+    # Voice mode: shrri voice
     if len(sys.argv) == 2 and sys.argv[1].lower() == "voice":
-        from tools.voice_input import listen
-        text = listen()
-        if text:
-            print(engine.chat(text))
+        from tools.voice_tool import listen, speak
+        print("SHRRI Voice Mode active — speak in Tamil or English (say bye to quit)")
+        speak("Hello Shrridharshan, voice mode ready. Speak your command.")
+        while True:
+            text = listen()
+            if not text:
+                speak("Kekala, try again.")
+                continue
+            print(f"You said: {text}")
+            if text.lower() in ("exit", "quit", "bye", "goodbye", "stop"):
+                speak("Seri, bye Shrridharshan!")
+                break
+            response = engine.chat(text)
+            print(f"SHRRI: {response}")
+            speak(response)
         return
 
     # One-shot mode: shrri what is the capital of France

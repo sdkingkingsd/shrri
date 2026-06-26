@@ -93,8 +93,9 @@ def detect_intent(message: str) -> dict:
         return {"tool": "briefing", "action": "get", "params": {}}
 
     # WhatsApp reader
-    if any(t in msg for t in ["read whatsapp", "whatsapp messages", "my whatsapp",
-                               "unread whatsapp", "check whatsapp"]):
+    # Catch-all: any mention of "whatsapp" that wasn't already
+    # matched by the "send whatsapp" rule above is treated as a read request.
+    if "whatsapp" in msg or "wa " in msg:
         return {"tool": "wa_read", "action": "read", "params": {"query": message}}
 
     # Python executor

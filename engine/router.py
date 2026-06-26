@@ -30,6 +30,40 @@ def _get_search_context(message: str) -> str:
         return ""
 
 
+def _classify_intent_llm(message: str) -> str:
+    """Ask the AI which tool this message needs, when keyword matching finds nothing."""
+    try:
+        system = (
+            "You are an intent classifier for a personal assistant called SHRRI. "
+            "Reply with ONLY one word from this exact list, nothing else:\n"
+            "whatsapp_read, whatsapp_send, email, calendar, notes, files, "
+            "youtube, weather, pyexec, system, none\n"
+            "Pick whatsapp_read for anything about checking/reading WhatsApp. "
+            "Pick whatsapp_send only if they want to send a message. "
+            "If nothing matches, reply: none"
+        )
+        router = Router()
+        result = router.chat(message, task="fast", system=system, web_search=False)
+        if not result:
+            return "none"
+        return result.strip().lower().split()[0].strip(".,!")
+    except Exception as e:
+        print(f"[SHRRI] Intent classifier error: {e}")
+        return "none"
+
+_FALLBACK_MAP = {
+    "whatsapp_read": ("wa_read", "read"),
+    "whatsapp_send": ("whatsapp", "send"),
+    "email": ("email", "check"),
+    "calendar": ("calendar", "check"),
+    "notes": ("notes", "show"),
+    "files": ("files", "search"),
+    "youtube": ("youtube", "summarize"),
+    "weather": ("weather", "check"),
+    "pyexec": ("pyexec", "run"),
+    "system": ("system", "control"),
+}
+
 def _get_tool_context(message: str) -> str:
     try:
         from tools.dispatcher import detect_intent, run_tool
@@ -37,6 +71,13 @@ def _get_tool_context(message: str) -> str:
         if intent["tool"] != "none":
             pass  # silent tool trigger
             return run_tool(intent, message)
+        # Fallback: keyword match found nothing — ask the AI what's needed
+        guessed = _classify_intent_llm(message)
+        if guessed in _FALLBACK_MAP:
+            tool, action = _FALLBACK_MAP[guessed]
+            print(f"[SHRRI] AI fallback routed to: {tool}")
+            fallback_intent = {"tool": tool, "action": action, "params": {"query": message}}
+            return run_tool(fallback_intent, message)
         return ""
     except Exception as e:
         print(f"[SHRRI] Tool dispatcher error: {e}")
