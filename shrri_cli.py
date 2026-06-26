@@ -33,7 +33,17 @@ def main():
     if len(sys.argv) > 1:
         question = " ".join(sys.argv[1:])
         response = engine.chat(question)
-        if response.startswith("WHATSAPP_PENDING|"):
+        if response.startswith("WHATSAPP_NAME_PENDING|"):
+            _, name, text = response.split("|", 2)
+            print(f"SHRRI: Ready to send to '{name}' (searching contacts):")
+            print(f'       "{text}"')
+            confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
+            if confirm in ("yes", "y"):
+                from tools.whatsapp_tool import send_by_name
+                print(send_by_name(name, text))
+            else:
+                print("SHRRI: Message cancelled.")
+        elif response.startswith("WHATSAPP_PENDING|"):
             _, phone, text = response.split("|", 2)
             print(f"SHRRI: Ready to send to {phone}:")
             print(f'       "{text}"')
@@ -69,7 +79,17 @@ def main():
             break
         response = engine.chat(user_input)
         # WhatsApp confirmation flow
-        if response.startswith("WHATSAPP_PENDING|"):
+        if response.startswith("WHATSAPP_NAME_PENDING|"):
+            _, name, text = response.split("|", 2)
+            print(f"SHRRI: Ready to send to '{name}' (searching contacts):")
+            print(f'       "{text}"')
+            confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
+            if confirm in ("yes", "y"):
+                from tools.whatsapp_tool import send_by_name
+                print(send_by_name(name, text))
+            else:
+                print("SHRRI: Message cancelled.")
+        elif response.startswith("WHATSAPP_PENDING|"):
             _, phone, text = response.split("|", 2)
             print(f"SHRRI: Ready to send to {phone}:")
             print(f'       "{text}"')

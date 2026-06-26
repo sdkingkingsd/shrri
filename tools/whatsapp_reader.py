@@ -1,4 +1,4 @@
-"""WhatsApp reader — reads recent messages via Selenium."""
+"""WhatsApp reader — reads recent messages with sender names."""
 import time, re
 
 CHROMEDRIVER = "/home/shrridharshan/.wdm/drivers/chromedriver/linux64/149.0.7827.155/chromedriver-linux64/chromedriver"
@@ -28,26 +28,20 @@ def read_whatsapp(message="", contact=""):
         driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
         wait = WebDriverWait(driver, 30)
         driver.get("https://web.whatsapp.com")
-
-        # Wait for chat list
         wait.until(EC.presence_of_element_located((By.XPATH, "//*[@aria-label='Chat list']")))
         time.sleep(4)
 
         if contact:
-            # Use search box (aria-label = "Search or start a new chat")
             search = driver.find_element(By.XPATH, "//*[@aria-label='Search or start a new chat']")
             search.click()
             search.send_keys(contact)
             time.sleep(2)
-            # Click first result in chat list
-            first = driver.find_elements(By.XPATH, "//*[@aria-label='Chat list']//div[@role='listitem' or @tabindex='-1']")
-            if first:
-                first[0].click()
-            else:
+            chats = driver.find_elements(By.XPATH, "//*[@aria-label='Chat list']//*[@tabindex='-1']")
+            if not chats:
                 driver.quit()
                 return "GAP: contact not found: " + contact
+            chats[0].click()
         else:
-            # Click first chat in list
             chats = driver.find_elements(By.XPATH, "//*[@aria-label='Chat list']//*[@tabindex='-1']")
             if not chats:
                 driver.quit()
@@ -56,26 +50,56 @@ def read_whatsapp(message="", contact=""):
 
         time.sleep(5)
 
-        # Extract messages
-        msgs = driver.find_elements(By.CSS_SELECTOR, "span.selectable-text.copyable-text")
-        if not msgs:
-            msgs = driver.find_elements(By.XPATH, "//span[@class='selectable-text copyable-text']")
-
-        if not msgs:
+        # Get message rows — each row has optional sender + text
+        rows = driver.find_elements(By.XPATH, "//div[contains(@class,'message-in') or contains(@class,'message-out')]")
+        
+        if not rows:
+            # fallback
+            msgs = driver.find_elements(By.CSS_SELECTOR, "span.selectable-text.copyable-text")
             driver.quit()
-            return "GAP: chat opened but no messages extracted."
+            if not msgs:
+                return "GAP: no messages found."
+            lines = ["Recent messages:"]
+            seen = set()
+            for m in msgs[-15:]:
+                t = m.text.strip()
+                if t and t not in seen:
+                    seen.add(t)
+                    lines.append("  • " + t)
+            return "\n".join(lines)
 
-        header = "Recent WhatsApp messages" + (" from " + contact if contact else "") + ":"
-        lines = [header]
+        lines = ["Recent WhatsApp messages" + (" from " + contact if contact else "") + ":"]
         seen = set()
-        for m in msgs[-15:]:
-            t = m.text.strip()
-            if t and t not in seen and len(t) > 1:
-                seen.add(t)
-                lines.append("  • " + t)
+        for row in rows[-15:]:
+            try:
+                # Try to get sender name (only in group chats)
+                try:
+                    sender = row.find_element(By.XPATH, ".//span[@aria-label]").get_attribute("aria-label")
+                    if sender and len(sender) < 40:
+                        sender = sender.replace(":", "").strip()
+                    else:
+                        sender = None
+                except Exception:
+                    sender = None
+
+                # Determine direction
+                cls = row.get_attribute("class") or ""
+                direction = "You" if "message-out" in cls else (sender or "Them")
+
+                # Get message text
+                try:
+                    txt = row.find_element(By.CSS_SELECTOR, "span.selectable-text.copyable-text").text.strip()
+                except Exception:
+                    txt = row.text.strip().split("\n")[0]
+
+                if txt and txt not in seen and len(txt) > 1:
+                    seen.add(txt)
+                    lines.append("  [" + direction + "] " + txt)
+            except Exception:
+                continue
 
         driver.quit()
-        return "\n".join(lines) if len(lines) > 1 else "No message text found."
+        return "\n".join(lines) if len(lines) > 1 else "No messages found."
 
     except Exception as e:
         return "GAP: WhatsApp read failed — " + str(e)
