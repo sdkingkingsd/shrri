@@ -92,6 +92,11 @@ def detect_intent(message: str) -> dict:
                                "daily briefing", "morning briefing", "my briefing"]):
         return {"tool": "briefing", "action": "get", "params": {}}
 
+    # YouTube summarizer
+    if "youtube.com" in msg or "youtu.be" in msg or\
+       ("summarize" in msg and "youtube" in msg):
+        return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
+
     # File manager
     _file_words = ["find all", "find my", "list files", "show files",
                    "files in", "find file", "open file", "my downloads",
@@ -163,6 +168,10 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "briefing":
         from tools.briefing_tool import get_briefing
         return get_briefing()
+
+    if tool == "youtube":
+        from tools.youtube_tool import summarize_youtube
+        return summarize_youtube(params.get("query", message))
 
     if tool == "files":
         from tools.file_tool import file_search, open_file

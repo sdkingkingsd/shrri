@@ -48,12 +48,22 @@ class SHRRIEngine:
         # the tool already computed correctly.
         from tools.dispatcher import detect_intent, run_tool
         _intent = detect_intent(message)
-        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files"):
+        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube"):
             result = run_tool(_intent, message)
-            if result and not result.startswith("GAP:"):
+            if result and result.startswith("YOUTUBE_SUMMARIZE|"):
+                _, _vid, _transcript = result.split("|", 2)
+                message = f"Summarize this YouTube video transcript concisely in 5 bullet points:\n\n{_transcript}"
+                result = None  # fall through to LLM
+            elif result and not result.startswith("GAP:"):
                 self.memory.save_message("user", message)
                 self.memory.save_message("assistant", result)
                 return result
+
+        # YouTube: pass transcript to LLM for summarization
+        if isinstance(result, str) and result.startswith("YOUTUBE_SUMMARIZE|"):
+            _, vid_id, transcript = result.split("|", 2)
+            message = f"Summarize this YouTube video transcript in 5 bullet points:\n\n{transcript}"
+            result = None  # fall through to LLM
 
         # Detect correction — user is teaching SHRRI
         correction = self._detect_correction(message)
@@ -137,12 +147,23 @@ class SHRRIEngine:
         # Get response
         response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=True)
 
-        # Strip Step 1-5 scaffolding from output.
-        for _marker in ("Revised Answer:", "**Step 5:", "Step 5:"):
-            if _marker in response:
-                response = response.split(_marker)[-1]
-                response = response.split("\n", 1)[-1].strip()
-                break
+        # Strip Step/reasoning scaffolding — keep only final answer
+        import re as _re
+        if any(m in response for m in ("**Step", "Step 1:", "Step 2:", "**Final Answer", "**Tentative")):
+            # Try Final Answer block first
+            _fa = _re.search(r"\*\*Final Answer[:\*]*\*?\*?\n(.+)", response, _re.DOTALL)
+            if _fa:
+                response = _fa.group(1).strip()
+            else:
+                # Try Revised Answer
+                _ra = _re.search(r"(?:Revised Answer|Final Answer)[:\s]+(.+)", response, _re.DOTALL)
+                if _ra:
+                    response = _ra.group(1).strip()
+                else:
+                    # Last non-empty paragraph
+                    _parts = [p.strip() for p in response.split("\n\n") if p.strip()]
+                    if _parts:
+                        response = _parts[-1]
 
         # Safety net: if the model got stuck in a repetition loop (confirmed
         # real failure mode — burns the full token budget repeating the same
