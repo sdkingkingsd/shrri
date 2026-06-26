@@ -49,7 +49,7 @@ class SHRRIEngine:
         from tools.dispatcher import detect_intent, run_tool
         _intent = detect_intent(message)
         result = None
-        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read"):
+        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec"):
             result = run_tool(_intent, message)
             if result and result.startswith("YOUTUBE_SUMMARIZE|"):
                 _, _vid, _transcript = result.split("|", 2)

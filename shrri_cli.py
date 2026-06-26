@@ -31,7 +31,11 @@ def main():
 
     # One-shot mode: shrri what is the capital of France
     if len(sys.argv) > 1:
+        # Join args safely — no shell evaluation
         question = " ".join(sys.argv[1:])
+        # Strip any accidental shell metacharacters from leaking
+        import shlex
+        question = question.replace("\x00", "")  # null bytes
         response = engine.chat(question)
         if response.startswith("WHATSAPP_NAME_PENDING|"):
             _, name, text = response.split("|", 2)
@@ -62,7 +66,25 @@ def main():
     print("-" * 50)
     while True:
         try:
-            user_input = input("You: ").strip()
+            line1 = input("You: ").strip()
+            tick3 = chr(96) * 3
+            if tick3 in line1 or line1.strip() in ("run this", "run", "execute this", "exec this"):
+                parts = [line1]
+                while True:
+                    try:
+                        nxt = input("... ")
+                        parts.append(nxt)
+                        if nxt.strip() == tick3:
+                            break
+                    except EOFError:
+                        break
+                # Wrap in python fence so pyexec tool triggers
+                code_lines = parts[1:]  # skip "run this" line
+                if code_lines and code_lines[-1].strip() == tick3:
+                    code_lines = code_lines[:-1]  # remove closing fence
+                user_input = tick3 + "python\n" + "\n".join(code_lines) + "\n" + tick3
+            else:
+                user_input = line1
         except (EOFError, KeyboardInterrupt):
             print("\nGoodbye!")
             break

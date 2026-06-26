@@ -97,14 +97,23 @@ def detect_intent(message: str) -> dict:
                                "unread whatsapp", "check whatsapp"]):
         return {"tool": "wa_read", "action": "read", "params": {"query": message}}
 
+    # Python executor
+    if "```python" in message:
+        return {"tool": "pyexec", "action": "run", "params": {"query": message}}
+
+    # Python executor
+    if "```python" in message:
+        return {"tool": "pyexec", "action": "run", "params": {"query": message}}
+
     # YouTube summarizer
     if "youtube.com" in msg or "youtu.be" in msg or "summarize" in msg or "summarise" in msg:
         return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
 
     # File manager
-    _file_words = ["find all", "find my", "list files", "show files",
-                   "files in", "find file", "open file", "my downloads",
-                   "my documents", "my pictures", "all files", "pdf", "pdfs"]
+    _file_words = ["find all files", "find my files", "list files", "show files",
+                   "find all pdfs", "find all images", "find all videos",
+                   "files in my", "find file named", "open file",
+                   "my downloads folder", "my documents folder"]
     if any(t in msg for t in _file_words):
         _fact = "open" if "open file" in msg else "search"
         return {"tool": "files", "action": _fact, "params": {"query": message}}
@@ -176,6 +185,14 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "wa_read":
         from tools.whatsapp_reader import read_whatsapp
         return read_whatsapp(params.get("query", message))
+
+    if tool == "pyexec":
+        from tools.python_tool import run_python
+        return run_python(params.get("query", message))
+
+    if tool == "pyexec":
+        from tools.python_tool import run_python
+        return run_python(params.get("query", message))
 
     if tool == "youtube":
         from tools.youtube_tool import summarize_youtube
