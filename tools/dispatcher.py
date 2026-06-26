@@ -92,6 +92,11 @@ def detect_intent(message: str) -> dict:
                                "daily briefing", "morning briefing", "my briefing"]):
         return {"tool": "briefing", "action": "get", "params": {}}
 
+    # WhatsApp reader
+    if any(t in msg for t in ["read whatsapp", "whatsapp messages", "my whatsapp",
+                               "unread whatsapp", "check whatsapp"]):
+        return {"tool": "wa_read", "action": "read", "params": {"query": message}}
+
     # YouTube summarizer
     if "youtube.com" in msg or "youtu.be" in msg or\
        ("summarize" in msg and "youtube" in msg):
@@ -168,6 +173,10 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "briefing":
         from tools.briefing_tool import get_briefing
         return get_briefing()
+
+    if tool == "wa_read":
+        from tools.whatsapp_reader import read_whatsapp
+        return read_whatsapp(params.get("query", message))
 
     if tool == "youtube":
         from tools.youtube_tool import summarize_youtube

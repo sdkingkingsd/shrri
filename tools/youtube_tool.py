@@ -13,13 +13,34 @@ def extract_video_id(url: str) -> str:
             return m.group(1)
     return None
 
+def _search_yt_url(query):
+    import urllib.parse, urllib.request
+    q = urllib.parse.quote(query)
+    req = urllib.request.Request(
+        "https://www.youtube.com/results?search_query=" + q,
+        headers={"User-Agent": "Mozilla/5.0"}
+    )
+    import re as _re
+    html = urllib.request.urlopen(req, timeout=10).read().decode()
+    m = _re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
+    return ("https://www.youtube.com/watch?v=" + m.group(1)) if m else None
+
 def summarize_youtube(message: str) -> str:
     try:
         # Extract URL
         url_match = re.search(r"https?://[\S]+", message)
-        if not url_match:
-            return "GAP: no YouTube URL found. Try: summarize youtube.com/watch?v=..."
-        url = url_match.group()
+        if url_match:
+            url = url_match.group()
+        else:
+            query = message
+            for prefix in ["summarize ", "summary of ", "summarise "]:
+                if query.lower().startswith(prefix):
+                    query = query[len(prefix):]
+                    break
+            url = _search_yt_url(query)
+            if not url:
+                return "GAP: could not find that video on YouTube."
+            print("SHRRI: Found — " + url)
 
         video_id = extract_video_id(url)
         if not video_id:
