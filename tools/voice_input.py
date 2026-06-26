@@ -11,7 +11,7 @@ def _get_model():
     global _model
     if _model is None:
         print("[Voice] Loading speech recognition model (first time only)...")
-        _model = WhisperModel("tiny", device="cpu", compute_type="int8")
+        _model = WhisperModel("base", device="cpu", compute_type="int8")
     return _model
 
 

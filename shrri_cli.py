@@ -10,6 +10,14 @@ from engine import SHRRIEngine
 def main():
     engine = SHRRIEngine()
 
+    # Voice mode: shrri voice
+    if len(sys.argv) == 2 and sys.argv[1].lower() == "voice":
+        from tools.voice_input import listen
+        text = listen()
+        if text:
+            print(engine.chat(text))
+        return
+
     # One-shot mode: shrri what is the capital of France
     if len(sys.argv) > 1:
         question = " ".join(sys.argv[1:])
@@ -27,6 +35,12 @@ def main():
             break
         if not user_input:
             continue
+        if user_input.lower() == "voice":
+            from tools.voice_input import listen
+            user_input = listen()
+            if not user_input:
+                continue
+            print(f"You said: {user_input}")
         if user_input.lower() in ("exit", "quit", "bye"):
             print("Goodbye!")
             break
