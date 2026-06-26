@@ -65,7 +65,7 @@ def encrypt_file(filepath: str, fernet: Fernet = None):
         f.write(encrypted)
 
     os.remove(filepath)
-    print(f"✅ Encrypted: {filepath}")
+    pass  # silent encrypt
 
 
 def decrypt_file(filepath: str, fernet: Fernet = None) -> bytes:

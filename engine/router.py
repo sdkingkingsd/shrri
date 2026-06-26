@@ -71,7 +71,7 @@ class Router:
             if not context:
                 context = _get_search_context(message)
                 if context:
-                    print(f"[SHRRI] Web search triggered...")
+                    pass  # silent search
 
         if context:
             # Math/time results are authoritative — the LLM must NOT re-derive them.
@@ -119,7 +119,7 @@ class Router:
                     try:
                         response = provider.chat(enriched_message, model, history=history, system=system)
                         self.km.mark_used(key_id)
-                        print(f"[SHRRI] Used: {provider_name} ({model}) [{key_id}]")
+                        pass  # silent provider
                         return response
                     except Exception as e:
                         if "rate_limit" in str(e).lower() or "429" in str(e):

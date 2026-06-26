@@ -33,7 +33,7 @@ class SHRRIEngine:
         self.agents = AgentRouter(self.router)
         self.reflection = ReflectionEngine(self.memory.conn)
         self.gaps = GapLogger(self.memory.conn)
-        print("[SHRRI] Engine initialized. Memory loaded.")
+        pass  # silent init
 
     def chat(self, message, task="default"):
         # Strip 'think:' / 'verify:' trigger prefix BEFORE anything else touches
@@ -63,7 +63,7 @@ class SHRRIEngine:
                 wrong=correction["wrong"],
                 correction=correction["right"]
             )
-            print(f"[SHRRI] Learned correction: {learned}")
+            pass  # silent correction
 
         # Save user message
         self.memory.save_message("user", message)
@@ -129,7 +129,7 @@ class SHRRIEngine:
         use_reasoning_mode = explicit_reasoning_requested or needs_reasoning_mode(message, agent_used)
         outgoing_message = build_reasoning_prompt(message) if use_reasoning_mode else message
         if use_reasoning_mode:
-            print(f"[SHRRI] Reasoning mode active (category: {agent_used})")
+            pass  # silent reasoning
 
         # Token accounting
         chat_input_tokens = count_tokens(system) + count_messages(history) + count_tokens(outgoing_message)
@@ -161,7 +161,7 @@ class SHRRIEngine:
                     message=message,
                     error=response[:300]
                 )
-                print(f"[SHRRI] Gap logged: {agent_used} failed on this input.")
+                pass  # silent gap
             except Exception:
                 pass
 
@@ -186,14 +186,13 @@ class SHRRIEngine:
                     value = f.get("value")
                     if key and value:
                         self.memory.save_fact(key, value)
-                        print(f"[SHRRI] Auto-learned: {key} = {value}")
+                        pass  # silent learn
             except Exception:
                 pass
 
         total_input = chat_input_tokens + extract_input_tokens + classify_input_tokens
         total_output = chat_output_tokens
-        print(f"[SHRRI] Agent: {agent_used} | Tokens this turn — chat: {chat_input_tokens}in/{chat_output_tokens}out | "
-              f"classify: {classify_input_tokens}in | extraction: {extract_input_tokens}in | total: ~{total_input + total_output}")
+        pass  # (
 
         return response
 
