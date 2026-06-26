@@ -82,6 +82,19 @@ def detect_intent(message: str) -> dict:
     if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
+    # Calendar
+    calendar_today = ["today's events", "what's on my calendar", "my schedule today",
+                      "calendar today", "what do i have today", "my events today",
+                      "anything on my calendar", "what's scheduled"]
+    if any(t in msg for t in calendar_today):
+        return {"tool": "calendar", "action": "today", "params": {}}
+
+    calendar_upcoming = ["upcoming events", "next week", "this week calendar",
+                         "schedule this week", "what's coming up", "my calendar",
+                         "coming up this week", "this week", "next 7 days", "upcoming"]
+    if any(t in msg for t in calendar_upcoming):
+        return {"tool": "calendar", "action": "upcoming", "params": {"days": 7}}
+
     # Weather
     weather_triggers = ["weather", "temperature", "temp in", "how hot", "how cold", "raining in", "forecast"]
     if any(t in msg for t in weather_triggers):
@@ -95,6 +108,12 @@ def run_tool(intent: dict, message: str) -> str:
     tool = intent["tool"]
     action = intent["action"]
     params = intent["params"]
+
+    if tool == "calendar":
+        from tools.calendar_tool import get_today_events, get_upcoming_events
+        if action == "today":
+            return get_today_events()
+        return get_upcoming_events(params.get("days", 7))
 
     if tool == "weather":
         from tools.weather_tool import get_weather
