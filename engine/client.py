@@ -62,12 +62,19 @@ class SHRRIEngine:
         from tools.dispatcher import detect_intent, run_tool
         _intent = detect_intent(message)
         result = None
+        _skip_tool_dispatch = False
         if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec"):
             result = run_tool(_intent, message)
             if result and result.startswith("YOUTUBE_SUMMARIZE|"):
                 _, _vid, _transcript = result.split("|", 2)
                 message = f"Summarize this YouTube video transcript concisely in 5 bullet points:\n\n{_transcript}"
                 result = None  # fall through to LLM
+                # The tool already ran above — skip tool-dispatch on the next
+                # router.chat() call, otherwise the word "summarize" in this
+                # new message re-triggers detect_intent() -> youtube tool a
+                # SECOND time, searching again with the transcript as the
+                # query (garbled, wrong video, "transcript not available").
+                _skip_tool_dispatch = True
             elif result and not result.startswith("GAP:"):
                 self.memory.save_message("user", message)
                 self.memory.save_message("assistant", result)
@@ -159,7 +166,7 @@ class SHRRIEngine:
         chat_input_tokens = count_tokens(system) + count_messages(history) + count_tokens(outgoing_message)
 
         # Get response
-        response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=True)
+        response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=not _skip_tool_dispatch)
 
         # Strip Step/reasoning scaffolding — keep only final answer
         import re as _re
