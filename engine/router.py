@@ -54,14 +54,20 @@ def _classify_intent_llm(message: str) -> str:
             "- calendar_create: asking to add an event/meeting\n"
             "- calendar_today: asking what's on today's calendar\n"
             "- calendar_upcoming: asking about upcoming days/week\n"
-            "- briefing: asking for a daily summary/briefing/good morning update\n"
+            "- briefing: ONLY for explicit daily-briefing requests like \"good morning\", "
+            "\"give me my briefing\", \"what's my day look like\" — NOT for personal questions "
+            "like \"tell me about me\" or \"what do you know about me\", which are 'none' "
+            "(those go straight to the assistant's normal reply using saved facts)\n"
             "- pyexec: asking to run/calculate something with code\n"
             "- youtube: asking to summarize a video\n"
             "- files: asking to find/search files\n"
             "- system: asking to control volume/brightness/lock screen\n"
             "- weather: asking about weather\n"
             "- math/time: only if no other category fits, simple calculation or current time\n"
-            "- none: casual conversation, general questions, anything not matching above\n"
+            "- none: casual conversation, general questions, personal questions like "
+            "\"tell me about me\", \"what do you know about me\", \"who am I\" — these "
+            "should NOT trigger any tool, the assistant already knows saved facts and answers "
+            "directly. Also use 'none' for anything not clearly matching another label.\n"
             "If unsure, prefer none over guessing wrong."
         )
         router = Router()
@@ -193,6 +199,14 @@ class Router:
 
                     try:
                         response = provider.chat(enriched_message, model, history=history, system=system)
+                        # Treat empty/placeholder output as a failure, not a real answer —
+                        # some models occasionally return blank content + blank reasoning,
+                        # which providers.py turns into the literal string "No response".
+                        if not response or not response.strip() or response.strip() == "No response":
+                            print(f"[SHRRI] {provider_name} key {key_id} returned empty output — trying next key...")
+                            self.km.mark_cooldown(key_id, seconds=60)
+                            tried_ids.add(key_id)
+                            continue
                         self.km.mark_used(key_id)
                         pass  # silent provider
                         return response
