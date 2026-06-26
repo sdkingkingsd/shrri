@@ -92,6 +92,30 @@ def detect_intent(message: str) -> dict:
                                "daily briefing", "morning briefing", "my briefing"]):
         return {"tool": "briefing", "action": "get", "params": {}}
 
+    # File manager
+    _file_words = ["find all", "find my", "list files", "show files",
+                   "files in", "find file", "open file", "my downloads",
+                   "my documents", "my pictures", "all files", "pdf", "pdfs"]
+    if any(t in msg for t in _file_words):
+        _fact = "open" if "open file" in msg else "search"
+        return {"tool": "files", "action": _fact, "params": {"query": message}}
+
+    # System control
+    system_triggers = ["lock screen", "lock my screen", "shutdown", "shut down",
+                       "power off", "restart", "reboot", "cancel shutdown",
+                       "volume up", "volume down", "volume", "mute",
+                       "brightness up", "brightness down", "brightness"]
+    if any(t in msg for t in system_triggers):
+        return {"tool": "system", "action": "control", "params": {"query": message}}
+
+    # Notes
+    if any(t in msg for t in ["save note", "add note", "note:", "remember this", "make a note"]):
+        return {"tool": "notes", "action": "save", "params": {"query": message}}
+    if any(t in msg for t in ["show notes", "my notes", "show my notes", "list notes", "search notes", "find note"]):
+        return {"tool": "notes", "action": "show", "params": {"query": message}}
+    if any(t in msg for t in ["delete note", "remove note"]):
+        return {"tool": "notes", "action": "delete", "params": {"query": message}}
+
     # Reminders
     if any(t in msg for t in ["remind me", "set a reminder", "reminder at", "alert me"]):
         return {"tool": "reminder", "action": "set", "params": {"query": message}}
@@ -139,6 +163,24 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "briefing":
         from tools.briefing_tool import get_briefing
         return get_briefing()
+
+    if tool == "files":
+        from tools.file_tool import file_search, open_file
+        if action == "open":
+            return open_file(params.get("query", message))
+        return file_search(params.get("query", message))
+
+    if tool == "system":
+        from tools.system_tool import system_control
+        return system_control(params.get("query", message))
+
+    if tool == "notes":
+        from tools.notes_tool import save_note, show_notes, delete_note
+        if action == "save":
+            return save_note(params.get("query", message))
+        if action == "delete":
+            return delete_note(params.get("query", message))
+        return show_notes(params.get("query", message))
 
     if tool == "reminder":
         from tools.reminder_tool import set_reminder, list_reminders
