@@ -77,6 +77,11 @@ def detect_intent(message: str) -> dict:
     if any(x in msg for x in ["search email", "find email", "email from", "email about", "look for email", "find mail"]):
         return {"tool": "gmail", "action": "search", "params": {"query": message}}
 
+    # Percentage math: "15% of 840", "what is 20% of 500"
+    import re as _re2
+    if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
+        return {"tool": "math", "action": "calculate", "params": {"query": message}}
+
     return {"tool": "none", "action": None, "params": {}}
 
 

@@ -70,6 +70,26 @@ def safe_calculate(expression: str) -> str:
 def extract_and_calculate(message: str) -> str:
     """Pull an arithmetic expression out of a natural-language message and
     compute it. Handles things like '17 times 23', '17 * 23', 'what is 5 + 9'."""
+    # Handle percentage: "15% of 840" -> "15/100 * 840"
+    import re as _re
+    pct_match = _re.search(r'([\d.]+)\s*%\s*of\s*([\d.]+)', message, _re.IGNORECASE)
+    if pct_match:
+        pct = float(pct_match.group(1))
+        num = float(pct_match.group(2))
+        result = pct / 100 * num
+        if result == int(result):
+            result = int(result)
+        return f"🧮 {pct_match.group(1)}% of {pct_match.group(2)} = {result}"
+
+    # Handle percentage: "15% of 840"
+    import re as _re
+    _pct = _re.search(r"([\d.]+)\s*%\s*of\s*([\d.]+)", message, _re.IGNORECASE)
+    if _pct:
+        _p = float(_pct.group(1)); _n = float(_pct.group(2))
+        _r = _p / 100 * _n
+        _r = int(_r) if _r == int(_r) else _r
+        return f"\U0001f9ee {_pct.group(1)}% of {_pct.group(2)} = {_r}"
+
     msg = message.lower()
     msg = msg.replace("times", "*").replace("multiplied by", "*")
     msg = msg.replace("plus", "+").replace("added to", "+")
