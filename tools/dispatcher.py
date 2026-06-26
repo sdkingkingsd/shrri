@@ -98,8 +98,7 @@ def detect_intent(message: str) -> dict:
         return {"tool": "wa_read", "action": "read", "params": {"query": message}}
 
     # YouTube summarizer
-    if "youtube.com" in msg or "youtu.be" in msg or\
-       ("summarize" in msg and "youtube" in msg):
+    if "youtube.com" in msg or "youtu.be" in msg or "summarize" in msg or "summarise" in msg:
         return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
 
     # File manager

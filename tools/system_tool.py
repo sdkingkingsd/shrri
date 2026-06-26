@@ -51,16 +51,16 @@ def system_control(message: str) -> str:
         m3 = re.search(r"volume\s+(\d+)", msg)
         if m3:
             vol = min(100, int(m3.group(1)))
-            subprocess.run(["amixer", "-q", "sset", "Master", f"{vol}%"])
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{vol}%"])
             return f"🔊 Volume set to {vol}%."
         if "mute" in msg:
-            subprocess.run(["amixer", "-q", "sset", "Master", "toggle"])
+            subprocess.run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"])
             return "🔇 Volume toggled mute."
         if "volume up" in msg:
-            subprocess.run(["amixer", "-q", "sset", "Master", "10%+"])
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "+10%"])
             return "🔊 Volume increased."
         if "volume down" in msg:
-            subprocess.run(["amixer", "-q", "sset", "Master", "10%-"])
+            subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "-10%"])
             return "🔉 Volume decreased."
 
         # Brightness
