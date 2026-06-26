@@ -67,7 +67,7 @@ def detect_intent(message: str) -> dict:
 
     # Read inbox
     if any(x in msg for x in [
-        "read email", "check email", "my inbox", "unread", "gmail", "emails",
+        "read email", "check email", "check my email", "my inbox", "unread", "gmail", "emails", "email",
         "any mail", "check mail", "new mail", "new emails", "what emails",
         "got any mail", "any messages", "check messages"
     ]):
