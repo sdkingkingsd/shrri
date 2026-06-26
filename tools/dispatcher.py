@@ -82,6 +82,11 @@ def detect_intent(message: str) -> dict:
     if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
+    # Daily briefing
+    if any(t in msg for t in ["good morning", "good evening", "good afternoon",
+                               "daily briefing", "morning briefing", "my briefing"]):
+        return {"tool": "briefing", "action": "get", "params": {}}
+
     # Reminders
     if any(t in msg for t in ["remind me", "set a reminder", "reminder at", "alert me"]):
         return {"tool": "reminder", "action": "set", "params": {"query": message}}
@@ -89,6 +94,13 @@ def detect_intent(message: str) -> dict:
         return {"tool": "reminder", "action": "list", "params": {}}
 
     # Calendar
+    # Create calendar event
+    create_triggers = ["add event", "create event", "schedule meeting", "add meeting",
+                       "book meeting", "set up meeting", "add to calendar", "schedule a",
+                       "create a meeting", "add a meeting"]
+    if any(t in msg for t in create_triggers):
+        return {"tool": "calendar", "action": "create", "params": {"query": message}}
+
     calendar_today = ["today's events", "what's on my calendar", "my schedule today",
                       "calendar today", "what do i have today", "my events today",
                       "anything on my calendar", "what's scheduled"]
@@ -115,6 +127,10 @@ def run_tool(intent: dict, message: str) -> str:
     action = intent["action"]
     params = intent["params"]
 
+    if tool == "briefing":
+        from tools.briefing_tool import get_briefing
+        return get_briefing()
+
     if tool == "reminder":
         from tools.reminder_tool import set_reminder, list_reminders
         if action == "list":
@@ -125,6 +141,9 @@ def run_tool(intent: dict, message: str) -> str:
         from tools.calendar_tool import get_today_events, get_upcoming_events
         if action == "today":
             return get_today_events()
+        if action == "create":
+            from tools.calendar_tool import create_event
+            return create_event(params.get("query", message))
         return get_upcoming_events(params.get("days", 7))
 
     if tool == "weather":
