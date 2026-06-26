@@ -137,6 +137,13 @@ class SHRRIEngine:
         # Get response
         response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=True)
 
+        # Strip Step 1-5 scaffolding from output.
+        for _marker in ("Revised Answer:", "**Step 5:", "Step 5:"):
+            if _marker in response:
+                response = response.split(_marker)[-1]
+                response = response.split("\n", 1)[-1].strip()
+                break
+
         # Safety net: if the model got stuck in a repetition loop (confirmed
         # real failure mode — burns the full token budget repeating the same
         # paragraph), truncate to the clean part instead of returning garbage.
