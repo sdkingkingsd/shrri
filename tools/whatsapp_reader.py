@@ -46,7 +46,20 @@ def read_whatsapp(message="", contact=""):
             if not chats:
                 driver.quit()
                 return "GAP: could not open any chat."
-            chats[0].click()
+            # Prefer the first 1-on-1 chat over a group chat — group chats can have
+            # different DOM structure (member lists, etc.) that confuses the message
+            # selectors and previously leaked phone numbers. We detect a group by
+            # checking if the chat row contains a "group" icon/aria-label.
+            chosen = chats[0]
+            for c in chats[:10]:  # only check the first 10 for speed
+                try:
+                    is_group = c.find_elements(By.XPATH, ".//*[contains(@aria-label,'Group') or contains(@title,'Group')]")
+                    if not is_group:
+                        chosen = c
+                        break
+                except Exception:
+                    continue
+            chosen.click()
 
         time.sleep(5)
 
@@ -54,11 +67,18 @@ def read_whatsapp(message="", contact=""):
         rows = driver.find_elements(By.XPATH, "//div[contains(@class,'message-in') or contains(@class,'message-out')]")
         
         if not rows:
-            # fallback
-            msgs = driver.find_elements(By.CSS_SELECTOR, "span.selectable-text.copyable-text")
+            # fallback — SCOPED to the actual message panel only (#main),
+            # never the whole page. The unscoped version was picking up
+            # text from sidebars/group-info panels (e.g. member lists),
+            # which leaked phone numbers in group chats.
+            try:
+                panel = driver.find_element(By.CSS_SELECTOR, "#main")
+                msgs = panel.find_elements(By.CSS_SELECTOR, "span.selectable-text.copyable-text")
+            except Exception:
+                msgs = []
             if not msgs:
                 driver.quit()
-                return "GAP: no messages found."
+                return "GAP: no messages found (chat may still be loading or unsupported group format)."
             lines = ["Recent messages:"]
             seen = set()
             for m in msgs[-15:]:
