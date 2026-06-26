@@ -1,0 +1,144 @@
+====================================
+SHRRI FULL DIAGNOSTIC TEST
+====================================
+
+--- TEST: what time is it ---
+Current time: 05:20 PM, Friday, June 26, 2026
+
+--- TEST: what is today's date ---
+Current time: 05:20 PM, Friday, June 26, 2026
+
+--- TEST: what is 347 multiplied by 23 ---
+🧮 347 * 23 = 7981
+
+--- TEST: weather in Chennai ---
+🌤 Weather in Chennai, India:
+  Haze, 35°C (feels like 47°C)
+  💧 Humidity: 63%  💨 Wind: 25 km/h
+
+--- TEST: save note: diagnostic test run ---
+📝 Note saved: "diagnostic test run"
+
+--- TEST: show my notes ---
+📝 Your notes (3):
+  [1] 2026-06-26 11:17 AM — meeting with CDC at 3pm tomorrow
+  [2] 2026-06-26 12:23 PM — SHRRI full test on 26 June 202
+  [3] 2026-06-26 05:20 PM — diagnostic test run
+
+--- TEST: find all pdfs in my downloads ---
+Found 11 file(s) in /home/shrridharshan/Downloads:
+  DT20268153315_Application_Form.pdf (28KB)
+  Shrri_Dharshan_Resume (1).pdf (6KB)
+  VIT Chennai - VTOP.pdf (186KB)
+  SANGAMAN ISSUE-2.pdf (71200KB)
+  sangaman_issue_1_script.pdf (76KB)
+  Sangaman Issue1.pdf (8493KB)
+  Task 2 Guide.pdf (10803KB)
+  in.gov.uidai-ADHAR-c6a428984864fe4afa7aabf2a9dbb817.pdf (510KB)
+  CRAG_WebSearch_Augmentation.pdf (183KB)
+  AI_PROJECT.pdf (1515KB)
+  REPORT - CPS.pdf (769KB)
+
+--- TEST: volume up ---
+🔊 Volume increased.
+
+--- TEST: check my email ---
+📧 Your emails:
+
+1. **ACM India Invitation**: 
+   You've been invited to ACM India Technology Policy Committee Webinar - July 16.
+
+2. **Academic Talk Notification**:
+   "Preventing Retry Storms in AI-Assisted Microservices" talk is scheduled for July 16, hosted by ACM Learning Center.
+
+3. **Cadence Super Dream Internship Selection**:
+   Congratulations, you've been selected for Cadence Super Dream Internship 2027 batch!
+
+4. **ABSYZ Dream Internship Registration Update**:
+   There's an update on ABSYZ Dream Internship Registration for the 2027 batch.
+
+5. **VIT Chennai Campus Placement Information**:
+   ABSYZ Dream Offer Registration - 2027 batch information has been forwarded via VITCC Placement.
+
+--- TEST: what's on my calendar today ---
+No events scheduled for today.
+
+--- TEST: check my whatsapp ---
+Recent messages:
+  • Yaru nu theriyuma
+  • Ya theriyum theriyum
+  • 2025 batch nu solu suppose marantanga na
+  • Avanga keela project pani dha paper publish panom
+  • So avangaluku nallave theriyum
+  • Unga name aprem endha year la avungala Neenga teacher ah eduthinga then antha course voda slot anupunga Anna aperm reg number ungaloda
+  • Dei avangaluku enna theriyum da nee Mourish Kanna 2025 batch cognitive robotics eduthanga, underwater image enhancement la work pananga nu solu
+  • Okay anna
+  • Good evening Maam
+I am Shrri Dharshan Reg No 23BPS1090 a final year BTech CSE with Cyber Physical Systems student at VIT Chennai.
+My senior Mourish Kanna from the 2025 batch worked under your guidance on the Underwater Image Enhancement project. He recommended that I contact you regarding my final year project.
+I am currently looking for a mentor for my final year project and would be grateful if you could guide me and serve as my project mentor.
+Please let me know if this would be possible. Thank you for your time Maam.
+  • Ithu okay va
+  • Yes okay
+  • No reply anna
+  • pathutanga la?
+  • Message pakkala anna
+  • Therilaye da nerla pesuna betterah irukum nenaikren
+
+--- TEST: summarize never gonna give you up rick astley ---
+SHRRI: Found — https://www.youtube.com/watch?v=dQw4w9WgXcQ
+SHRRI: Found — https://www.youtube.com/watch?v=T8izD2ThUYA
+Since the transcript is not available, I will provide a summary based on the video title and description.
+
+The YouTube video is likely a cover of the iconic song "Never Gonna Give You Up" by Rick Astley. The song is a classic 80s hit and its lyrics are about a person who is committed to their partner and promises not to give them up. The song's chorus repeats the phrase "never gonna give you up" multiple times, emphasizing the speaker's commitment.
+
+Here is a concise summary of the song's lyrics in 5 bullet points:
+
+• The speaker is committed to their partner and promises not to give them up.
+• They've known each other for a long time and have a deep understanding of each other.
+• The speaker wants to make their partner understand how they're feeling and reassure them of their commitment.
+• They promise not to let their partner down, make them cry, or say goodbye.
+• The song's chorus repeats the phrase "never gonna give you up" multiple times, emphasizing the speaker's commitment to their partner.
+
+--- TEST: good morning ---
+Good evening, Shrridharshan! Here's your briefing for Friday, June 26:
+
+🌤 Weather in Chennai, India:
+  Haze, 35°C (feels like 47°C)
+  💧 Humidity: 63%  💨 Wind: 25 km/h
+
+No events scheduled for today.
+
+📬 Latest emails:
+📧 Gmail — 3 emails found:
+==================================================
+
+📩 From: ACM India <membernet@acm.org>
+   Subject: You're Invited: ACM India Technology Policy Committee Webinar - July 16
+   Date: Fri, 26 Jun 2026 01:30:00 -0400 (EDT)
+
+📩 From: ACM Learning Center <learning@acm.org>
+   Subject: July 16 Talk: "Preventing Retry Storms in AI-Assisted Microservices" with Sibasis Padhi
+   Date: Fri, 26 Jun 2026 00:39:07 -0400 (EDT)
+
+📩 From: "'No Reply CDC Info' via VITIANS CDC Group, Vellore and Chennai Campus" <vitianscdc2027@vitstudent.ac.in>
+   Subject: Congratulations !! Cadence Super Dream Internship selection list 2027 batch !!
+   Date: Fri, 26 Jun 2026 09:18:22 +0530
+
+
+--- TEST: remind me at 9pm to test reminders ---
+⏰ Reminder set for 09:00 PM — I'll notify you to: test reminders
+
+--- TEST: hi ---
+Hi, Shrridharshan! How can I help you right now?
+
+--- TEST: tell about me ---
+No response
+
+====================================
+TEST COMPLETE — scan above for:
+  - 'GAP:' (tool-level failure)
+  - 'Traceback' (Python crash)
+  - Tamil text where English expected
+  - 'ERROR: All providers failed'
+====================================

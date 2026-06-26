@@ -17,11 +17,18 @@ def detect_intent(message: str) -> dict:
     if has_arithmetic_symbols:
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
-    # Real system time/date — no AI guessing needed
+    # Real system date — check BEFORE time, since "today" can overlap
+    date_triggers = [
+        "what date", "today's date", "what day is it", "current date",
+        "what's the date", "which date",
+    ]
+    if any(t in msg for t in date_triggers):
+        return {"tool": "date", "action": "get_date", "params": {}}
+
+    # Real system time — no AI guessing needed
     time_triggers = [
         "what time", "current time", "time now", "what's the time",
-        "tell me the time", "what date", "today's date", "what day is it",
-        "current date",
+        "tell me the time",
     ]
     if any(t in msg for t in time_triggers):
         return {"tool": "time", "action": "get_time", "params": {}}
@@ -252,6 +259,10 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "math":
         from tools.math_tool import extract_and_calculate
         return extract_and_calculate(params.get("query", message))
+
+    if tool == "date":
+        from tools.time_tool import get_current_date
+        return get_current_date()
 
     if tool == "time":
         from tools.time_tool import get_current_time
