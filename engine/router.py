@@ -35,7 +35,7 @@ def _get_tool_context(message: str) -> str:
         from tools.dispatcher import detect_intent, run_tool
         intent = detect_intent(message)
         if intent["tool"] != "none":
-            print(f"[SHRRI] Tool triggered: {intent['tool']} → {intent['action']}")
+            pass  # silent tool trigger
             return run_tool(intent, message)
         return ""
     except Exception as e:
