@@ -22,8 +22,22 @@ def _search_yt_url(query):
     )
     import re as _re
     html = urllib.request.urlopen(req, timeout=10).read().decode()
-    m = _re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
-    return ("https://www.youtube.com/watch?v=" + m.group(1)) if m else None
+    # Anchor to videoRenderer blocks — these are real search results,
+    # in the order YouTube actually displays them. A bare "videoId" search
+    # picks up ads/sidebar/config junk that appears earlier in the page.
+    m = _re.search(r'"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})"', html)
+    if not m:
+        # Fallback: some page variants nest videoId right after videoRenderer
+        # but not as the literal first key — search within a window after
+        # the first "videoRenderer" occurrence instead of the whole page.
+        vr = html.find('"videoRenderer"')
+        if vr != -1:
+            window = html[vr:vr+500]
+            m2 = _re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', window)
+            if m2:
+                return "https://www.youtube.com/watch?v=" + m2.group(1)
+        return None
+    return "https://www.youtube.com/watch?v=" + m.group(1)
 
 def summarize_youtube(message: str) -> str:
     try:
