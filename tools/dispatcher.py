@@ -17,13 +17,6 @@ def detect_intent(message: str) -> dict:
     if has_arithmetic_symbols:
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
-    # Deterministic date arithmetic
-    date_triggers = bool(re.search(
-        r"\d+\s+days?\s+(from|after|before|from today|from now)", msg
-    ))
-    if date_triggers:
-        return {"tool": "date", "action": "relative", "params": {"query": message}}
-
     # Real system time/date — no AI guessing needed
     time_triggers = [
         "what time", "current time", "time now", "what's the time",
@@ -91,10 +84,6 @@ def run_tool(intent: dict, message: str) -> str:
     tool = intent["tool"]
     action = intent["action"]
     params = intent["params"]
-
-    if tool == "date":
-        from tools.math_tool import relative_date_calc
-        return relative_date_calc(params.get("query", message))
 
     if tool == "math":
         from tools.math_tool import extract_and_calculate
