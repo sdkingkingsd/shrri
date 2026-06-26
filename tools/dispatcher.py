@@ -82,6 +82,11 @@ def detect_intent(message: str) -> dict:
     if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
+    # WhatsApp
+    if any(t in msg for t in ["send whatsapp", "whatsapp to", "whatsapp message",
+                               "message on whatsapp", "wa message"]):
+        return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
+
     # Daily briefing
     if any(t in msg for t in ["good morning", "good evening", "good afternoon",
                                "daily briefing", "morning briefing", "my briefing"]):
@@ -126,6 +131,10 @@ def run_tool(intent: dict, message: str) -> str:
     tool = intent["tool"]
     action = intent["action"]
     params = intent["params"]
+
+    if tool == "whatsapp":
+        from tools.whatsapp_tool import send_whatsapp
+        return send_whatsapp(params.get("query", message))
 
     if tool == "briefing":
         from tools.briefing_tool import get_briefing

@@ -32,7 +32,19 @@ def main():
     # One-shot mode: shrri what is the capital of France
     if len(sys.argv) > 1:
         question = " ".join(sys.argv[1:])
-        print(engine.chat(question))
+        response = engine.chat(question)
+        if response.startswith("WHATSAPP_PENDING|"):
+            _, phone, text = response.split("|", 2)
+            print(f"SHRRI: Ready to send to {phone}:")
+            print(f'       "{text}"')
+            confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
+            if confirm in ("yes", "y"):
+                from tools.whatsapp_tool import send_whatsapp_now
+                print(send_whatsapp_now(phone, text))
+            else:
+                print("SHRRI: Message cancelled.")
+        else:
+            print(response)
         return
 
     # Interactive mode: just type shrri
@@ -56,7 +68,20 @@ def main():
             print("Goodbye!")
             break
         response = engine.chat(user_input)
-        print(f"SHRRI: {response}\n")
+        # WhatsApp confirmation flow
+        if response.startswith("WHATSAPP_PENDING|"):
+            _, phone, text = response.split("|", 2)
+            print(f"SHRRI: Ready to send to {phone}:")
+            print(f'       "{text}"')
+            confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
+            if confirm in ("yes", "y"):
+                from tools.whatsapp_tool import send_whatsapp_now
+                result = send_whatsapp_now(phone, text)
+                print(f"SHRRI: {result}\n")
+            else:
+                print("SHRRI: Message cancelled.\n")
+        else:
+            print(f"SHRRI: {response}\n")
 
 if __name__ == "__main__":
     main()
