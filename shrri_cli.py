@@ -90,7 +90,7 @@ def main():
             break
         if not user_input:
             continue
-        if user_input.lower() == "voice":
+        if user_input.lower() in ("voice", "listen", "speak"):
             from tools.voice_input import listen
             user_input = listen()
             if not user_input:
