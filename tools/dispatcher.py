@@ -82,13 +82,26 @@ def detect_intent(message: str) -> dict:
     if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
+    # Weather
+    weather_triggers = ["weather", "temperature", "temp in", "how hot", "how cold", "raining in", "forecast"]
+    if any(t in msg for t in weather_triggers):
+        return {"tool": "weather", "action": "get", "params": {"query": message}}
+
     return {"tool": "none", "action": None, "params": {}}
+
 
 
 def run_tool(intent: dict, message: str) -> str:
     tool = intent["tool"]
     action = intent["action"]
     params = intent["params"]
+
+    if tool == "weather":
+        from tools.weather_tool import get_weather
+        import re as _wr
+        _wm = _wr.search(r"(?:weather|temp|temperature|forecast)\s+(?:in|for|at)?\s*(.+)", params.get("query", message), _wr.IGNORECASE)
+        location = _wm.group(1).strip() if _wm else message
+        return get_weather(location)
 
     if tool == "math":
         from tools.math_tool import extract_and_calculate

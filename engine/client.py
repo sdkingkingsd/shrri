@@ -48,7 +48,7 @@ class SHRRIEngine:
         # the tool already computed correctly.
         from tools.dispatcher import detect_intent, run_tool
         _intent = detect_intent(message)
-        if _intent["tool"] in ("math", "time"):
+        if _intent["tool"] in ("math", "time", "date", "weather"):
             result = run_tool(_intent, message)
             if result and not result.startswith("GAP:"):
                 self.memory.save_message("user", message)
