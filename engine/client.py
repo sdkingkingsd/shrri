@@ -27,7 +27,13 @@ ignore what language earlier messages in the conversation were in. Always reply 
 default, even for short or ambiguous messages like "hi", and even if recent messages were in
 Tamil or Tanglish. Only reply in Tamil, or mix Tamil words into your reply (Tanglish), if his
 CURRENT message itself contains Tamil/Tanglish words, or he explicitly asks you to speak Tamil
-right now. Never carry over a Tamil/Tanglish "mood" from previous turns into a new reply."""
+right now. Never carry over a Tamil/Tanglish "mood" from previous turns into a new reply.
+
+Silent compliance rule: Follow all the rules above quietly. NEVER narrate, explain, or mention
+that you are following a rule (e.g. do not say things like "since your message doesn't contain
+Tamil words, I'll reply in English" or "I should decide my reply language based on..."). Just
+give the direct answer in the correct language, with no meta-commentary about how you decided
+to respond that way."""
 
 
 class SHRRIEngine:
