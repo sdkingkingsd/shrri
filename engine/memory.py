@@ -52,7 +52,15 @@ class Memory:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 key TEXT UNIQUE,
                 value TEXT,
-                created_at TEXT
+                created_at TEXT,
+                updated_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS fact_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT,
+                old_value TEXT,
+                new_value TEXT,
+                changed_at TEXT
             );
             CREATE TABLE IF NOT EXISTS conversations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,11 +74,20 @@ class Memory:
         self.conn.commit()
 
     def save_fact(self, key, value):
+        now = datetime.now().isoformat()
+        existing = self.conn.execute(
+            "SELECT value FROM facts WHERE key=?", (key,)
+        ).fetchone()
+        if existing and existing[0] != value:
+            self.conn.execute(
+                "INSERT INTO fact_history (key, old_value, new_value, changed_at) VALUES (?, ?, ?, ?)",
+                (key, existing[0], value, now)
+            )
         self.conn.execute("""
-            INSERT INTO facts (key, value, created_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value
-        """, (key, value, datetime.now().isoformat()))
+            INSERT INTO facts (key, value, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+        """, (key, value, now, now))
         self.conn.commit()
         self._save_encrypted()
 
@@ -85,6 +102,23 @@ class Memory:
             "SELECT key, value FROM facts"
         ).fetchall()
         return {r[0]: r[1] for r in rows}
+
+    def get_fact_history(self, key=None):
+        if key:
+            rows = self.conn.execute(
+                "SELECT key, old_value, new_value, changed_at FROM fact_history WHERE key=? ORDER BY changed_at DESC LIMIT 10",
+                (key,)
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT key, old_value, new_value, changed_at FROM fact_history ORDER BY changed_at DESC LIMIT 20"
+            ).fetchall()
+        return [{"key": r[0], "old": r[1], "new": r[2], "when": r[3]} for r in rows]
+
+    def delete_fact(self, key):
+        self.conn.execute("DELETE FROM facts WHERE key=?", (key,))
+        self.conn.commit()
+        self._save_encrypted()
 
     def save_message(self, role, content):
         self.conn.execute(
@@ -108,6 +142,16 @@ class Memory:
         ).fetchall()
         return [{"role": r[0], "content": r[1]} for r in rows]
 
+
+    def compress(self, summary: str):
+        """Replace all history with a single summary message."""
+        self.conn.execute("DELETE FROM conversations")
+        self.conn.execute(
+            "INSERT INTO conversations (role, content, timestamp) VALUES (?, ?, datetime('now'))",
+            ("system", f"[Conversation summary]: {summary}")
+        )
+        self.conn.commit()
+        self._save_encrypted()
     def clear_history(self):
         self.conn.execute("DELETE FROM conversations")
         self.conn.commit()
