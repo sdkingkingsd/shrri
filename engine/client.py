@@ -234,6 +234,38 @@ Summary:"""
                 pass
             return f"✅ Remembered: {fact_text}"
 
+        # Notes search
+        search_triggers = ["what did we", "do you remember", "did i mention",
+                           "last week", "yesterday i said", "when did i",
+                           "search notes", "what did i", "what have we",
+                           "what did we discuss", "what did we work", "what did we talk"]
+        if any(t in msg_lower for t in search_triggers):
+            try:
+                import sqlite3 as _sq3
+                from datetime import datetime as _dt2
+                _db = "/home/shrridharshan/.shrri/conversations.db"
+                _conn = _sq3.connect(_db)
+                if "today" in msg_lower:
+                    _today = _dt2.now().strftime("%Y-%m-%d")
+                    try:
+                        _row = _conn.execute("SELECT content FROM daily_notes WHERE date=?", (_today,)).fetchone()
+                    except Exception:
+                        _row = None
+                    _conn.close()
+                    if _row:
+                        return "Here is what we discussed today:\n" + _row[0][:600]
+                    return "No notes found for today yet."
+                _skip = {"what","when","where","did","you","remember","discuss","about","have","that","this","with","work","talk"}
+                _kw = [w for w in msg_lower.split() if len(w) > 3 and w not in _skip]
+                _query = " OR ".join(_kw[:4]) if _kw else msg_lower
+                _rows = _conn.execute("SELECT date, content FROM daily_notes WHERE daily_notes_fts MATCH ? ORDER BY rank LIMIT 3", (_query,)).fetchall()
+                _conn.close()
+                if _rows:
+                    _lines = ["- [" + r[0] + "]: " + r[1][:150] for r in _rows]
+                    return "Found in past notes:\n" + "\n".join(_lines)
+            except Exception:
+                pass
+
         if msg_lower in ("fact history", "what changed", "memory history"):
             history = self.memory.get_fact_history()
             if not history:
@@ -258,6 +290,39 @@ Summary:"""
             if wake:
                 return f"You wake up at {wake} da."
             return "I don't know your wake time yet. Tell me!"
+        # Notes search — before router grabs "do you remember"
+        notes_triggers = ["do you remember", "did i mention", "search notes",
+                          "what did i say", "what did we discuss", "what did we talk"]
+        if any(t in msg_lower for t in notes_triggers):
+            try:
+                import sqlite3 as _sq3
+                from datetime import datetime as _dt2
+                _db = "/home/shrridharshan/.shrri/conversations.db"
+                _conn = _sq3.connect(_db)
+                if "today" in msg_lower:
+                    _today = _dt2.now().strftime("%Y-%m-%d")
+                    try:
+                        _row = _conn.execute("SELECT content FROM daily_notes WHERE date=?", (_today,)).fetchone()
+                    except Exception:
+                        _row = None
+                    _conn.close()
+                    if _row:
+                        return "Here is what we discussed today:\n" + _row[0][:600]
+                    return "No notes found for today yet."
+                _skip = {"what","when","where","did","you","remember","discuss","about","have","that","this","with","work","talk","said","mention"}
+                _kw = [w for w in msg_lower.split() if len(w) > 3 and w not in _skip]
+                _query = " OR ".join(_kw[:4]) if _kw else msg_lower
+                try:
+                    _rows = _conn.execute("SELECT date, content FROM daily_notes_fts WHERE daily_notes_fts MATCH ? ORDER BY rank LIMIT 3", (_query,)).fetchall()
+                except Exception:
+                    _rows = []
+                _conn.close()
+                if _rows:
+                    _lines = ["- [" + r[0] + "]: " + r[1][:200] for r in _rows]
+                    return "Found in past notes:\n" + "\n".join(_lines)
+                return "I couldn't find anything about that in my notes da."
+            except Exception:
+                pass
         # ── End memory intercepts ──
 
         _intent = detect_intent(message)
