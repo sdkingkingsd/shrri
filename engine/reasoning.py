@@ -83,8 +83,8 @@ def needs_reasoning_mode(message: str, agent_category: str) -> bool:
                        "which is ", "how many ", "how much ")
     if any(msg.startswith(s) for s in simple_starters) and len(msg.split()) <= 12:
         return False
-    # Auto-trigger for categories prone to multi-step reasoning errors
-    if agent_category in ("research", "plan"):
+    # Auto-trigger ONLY for explicit multi-step planning tasks
+    if agent_category in ("plan",) and len(msg.split()) > 15:
         return True
     return False
 

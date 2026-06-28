@@ -85,7 +85,20 @@ def read_whatsapp(message="", contact=""):
                 t = m.text.strip()
                 if t and t not in seen:
                     seen.add(t)
-                    lines.append("  • " + t)
+                    # Try to get sender from data-pre-plain-text attribute on parent
+                    sender = ""
+                    try:
+                        parent = m.find_element(By.XPATH, "./ancestor::div[@data-pre-plain-text]")
+                        pre = parent.get_attribute("data-pre-plain-text") or ""
+                        # format: "[HH:MM, DD/MM/YYYY] Name: "
+                        import re as _re
+                        sm = _re.search(r"\] (.+?):", pre)
+                        if sm:
+                            sender = sm.group(1).strip()
+                    except Exception:
+                        pass
+                    prefix = f"  [{sender}] " if sender else "  • "
+                    lines.append(prefix + t)
             driver.quit()
             return "\n".join(lines)
 

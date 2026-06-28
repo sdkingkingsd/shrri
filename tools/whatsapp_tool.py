@@ -149,11 +149,20 @@ def send_whatsapp(message: str) -> str:
     result, err = parse_whatsapp(message)
     if err:
         # No phone number — try name-based search
-        name_match = re.search(r"(?:to|message)\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+saying", message, re.IGNORECASE)
+        name_match = None
+        for pat in [
+            r"send\s+(?:a\s+)?message\s+to\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:saying|that|:)",
+            r"send\s+(?:this\s+)?to\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:in|on|via)",
+            r"message\s+to\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:saying|that)",
+            r"(?:to|message)\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:saying|that|:)",
+        ]:
+            name_match = re.search(pat, message, re.IGNORECASE)
+            if name_match:
+                break
         if name_match:
             name = name_match.group(1).strip()
             text = ""
-            for marker in [" saying ", " message ", " that "]:
+            for marker in [" saying ", " that ", " message "]:
                 idx = message.lower().find(marker)
                 if idx != -1:
                     text = message[idx + len(marker):].strip()

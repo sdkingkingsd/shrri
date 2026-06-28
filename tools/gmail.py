@@ -206,3 +206,73 @@ def search_emails(query: str, max_results=5):
 if __name__ == "__main__":
     print("Testing Gmail connection...")
     print(read_emails(max_results=3))
+
+def read_latest_body(n=1):
+    """Read the actual full body of the latest n emails."""
+    try:
+        service = get_gmail_service()
+        results = service.users().messages().list(
+            userId="me", maxResults=n, q="is:unread"
+        ).execute()
+        messages = results.get("messages", [])
+        if not messages:
+            results = service.users().messages().list(
+                userId="me", maxResults=n
+            ).execute()
+            messages = results.get("messages", [])
+        if not messages:
+            return "No emails found."
+
+        output = []
+        for msg in messages[:n]:
+            msg_data = service.users().messages().get(
+                userId="me", id=msg["id"], format="full"
+            ).execute()
+            headers = {h["name"]: h["value"] for h in msg_data["payload"]["headers"]}
+            subject = headers.get("Subject", "No subject")
+            sender = headers.get("From", "Unknown")
+            date = headers.get("Date", "")
+
+            # Extract body — try plain text first, then HTML
+            body = ""
+            payload = msg_data["payload"]
+            html_body = ""
+
+            def extract_parts(parts):
+                global_plain = ""
+                global_html = ""
+                for part in parts:
+                    mime = part.get("mimeType", "")
+                    if mime == "text/plain":
+                        data = part["body"].get("data", "")
+                        if data:
+                            global_plain += base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                    elif mime == "text/html":
+                        data = part["body"].get("data", "")
+                        if data:
+                            global_html += base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                    elif "parts" in part:
+                        p, h = extract_parts(part["parts"])
+                        global_plain += p
+                        global_html += h
+                return global_plain, global_html
+
+            if "parts" in payload:
+                body, html_body = extract_parts(payload["parts"])
+            elif "body" in payload:
+                data = payload["body"].get("data", "")
+                if data:
+                    body = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+
+            # If no plain text, strip HTML tags
+            if not body.strip() and html_body:
+                import re as _re
+                body = _re.sub(r"<[^>]+>", " ", html_body)
+                body = _re.sub(r"\s+", " ", body).strip()
+
+            body = body.strip()[:1500] if body else "(no body content)"
+            output.append(f"From: {sender}\nSubject: {subject}\nDate: {date}\n\n{body}")
+
+        return "\n\n---\n\n".join(output)
+    except Exception as e:
+        return f"Error reading email body: {e}"

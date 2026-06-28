@@ -11,6 +11,15 @@ def main():
     engine = SHRRIEngine()
 
     # Special commands
+    if len(sys.argv) == 2 and sys.argv[1].lower() == "compress":
+        result = engine.compress_history()
+        print(result)
+        return
+    if len(sys.argv) == 2 and sys.argv[1].lower() == "doctor":
+        sys.path.insert(0, os.path.expanduser("~/shrri"))
+        from tools.doctor import run_doctor
+        run_doctor()
+        return
     if len(sys.argv) == 2 and sys.argv[1].lower() == "diagnose":
         engine.diagnose()
         return
@@ -33,7 +42,7 @@ def main():
                 speak("Kekala, try again.")
                 continue
             print(f"You said: {text}")
-            if text.lower() in ("exit", "quit", "bye", "goodbye", "stop"):
+            if text.lower().strip() in ("exit", "quit", "bye", "goodbye", "stop", "எக்ஸிட்", "குவைட்", "பை", "ஸ்டாப்", "நிறுத்து"):
                 speak("Seri, bye Shrridharshan!")
                 break
             response = engine.chat(text)

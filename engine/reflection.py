@@ -187,3 +187,82 @@ class ReflectionEngine:
             out += f"  {s[0]}: {s[1]} ({s[2]}x)\n"
 
         return out
+
+    def reflect_on_response(self, router, message: str, response: str) -> str:
+        """Full Reflexion loop — Generator → Reflector (loop) → Curator → final answer."""
+        import json, re
+
+        # Skip short/casual replies and tool outputs
+        if len(response) < 80:
+            return response
+        tool_signals = ["📧", "🌤", "📩", "✅", "❌", "⚡", "📅", "🔔"]
+        if any(s in response for s in tool_signals):
+            return response
+        meta_signals = ["shrri should", "the response should", "this response", "instead of", "do not"]
+
+        def check_quality(resp):
+            prompt = (
+                "You are a strict quality checker for SHRRI, a personal AI assistant.\n"
+                f"User asked: {message}\n"
+                f"SHRRI replied: {resp}\n\n"
+                "Check ONLY for these critical problems:\n"
+                "1. Hallucination — invented facts, fake names, fake emails, fake dates\n"
+                "2. Wrong language — user wrote English but reply is Tamil/Italian/other\n"
+                "3. Completely irrelevant — reply has nothing to do with the question\n\n"
+                "If no problems: {\"quality\": \"good\"}\n"
+                "If problems: {\"quality\": \"bad\", \"reason\": \"brief reason\", \"fixed\": \"corrected reply\"}\n"
+                "JSON only, no other text."
+            )
+            try:
+                raw = router.chat(prompt, task="fast", web_search=False)
+                raw = re.sub(r"```json|```", "", raw).strip()
+                data = json.loads(raw)
+                if data.get("quality") == "bad" and data.get("fixed"):
+                    fixed = data["fixed"].strip()
+                    if any(s in fixed.lower() for s in meta_signals):
+                        return True, None
+                    return False, fixed
+                return True, None
+            except Exception:
+                return True, None
+
+        # Reflector loop — max 3 attempts
+        attempts = [response]
+        current = response
+        for i in range(3):
+            is_good, fixed = check_quality(current)
+            if is_good:
+                break
+            if fixed:
+                attempts.append(fixed)
+                current = fixed
+            else:
+                break
+
+        # Curator — pick best if multiple attempts
+        if len(attempts) == 1:
+            best = attempts[0]
+        else:
+            options = "\n\n".join(f"Option {i+1}:\n{a}" for i, a in enumerate(attempts))
+            curator_prompt = (
+                f"You are the Curator for SHRRI. Pick the BEST response to the user.\n"
+                f"User asked: {message}\n\n"
+                f"{options}\n\n"
+                "Respond with ONLY the text of the best option — no labels, no explanation."
+            )
+            try:
+                best = router.chat(curator_prompt, task="fast", web_search=False)
+                if not best or len(best) < 10:
+                    best = attempts[-1]
+            except Exception:
+                best = attempts[-1]
+
+        # Save lesson if improved
+        if best != response:
+            self.store_correction(
+                situation=message[:100],
+                wrong=response[:100],
+                correction=best[:100]
+            )
+
+        return best

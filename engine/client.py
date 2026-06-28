@@ -1,3 +1,4 @@
+import os
 from .router import Router
 from .memory import Memory
 from .extractor import FactExtractor, EXTRACT_PROMPT
@@ -191,6 +192,72 @@ Summary:"""
         except Exception:
             pass
 
+        # ── Memory command intercepts (must run BEFORE detect_intent) ──
+        msg_lower = message.lower().strip()
+
+        know_triggers = ["what do you know about me", "what you know about me",
+                         "tell me about myself", "what do you know about shrri",
+                         "what you know", "ennai pathi sollu", "about me"]
+        if any(msg_lower == t for t in know_triggers):
+            facts = self.memory.get_all_facts()
+            if facts:
+                lines = [f"- {k}: {v}" for k, v in facts.items()]
+                return "Here's what I know about you:\n" + "\n".join(lines)
+            return "I don't have any facts stored about you yet. Tell me something!"
+
+        if msg_lower.startswith("forget "):
+            key_to_forget = message.strip()[7:].strip().lower().replace(" ", "_")
+            self.memory.delete_fact(key_to_forget)
+            return f"✅ Forgotten: {key_to_forget}"
+
+        if msg_lower.startswith("remember that ") or msg_lower.startswith("always remember "):
+            fact_text = " ".join(message.strip().split(" ")[2:])
+            # Save directly without LLM call — use raw text as key+value
+            key = "note_" + fact_text[:40].lower().replace(" ", "_").replace("'", "")
+            self.memory.save_fact(key, fact_text)
+            # Also try async LLM extraction in background
+            try:
+                import threading
+                def bg_extract():
+                    try:
+                        new_facts = self.extractor.extract(fact_text)
+                        for f in new_facts:
+                            k = f.get("key"); v = f.get("value")
+                            if k and v:
+                                self.memory.save_fact(k, v)
+                    except Exception:
+                        pass
+                threading.Thread(target=bg_extract, daemon=True).start()
+            except Exception:
+                pass
+            return f"✅ Remembered: {fact_text}"
+
+        if msg_lower in ("fact history", "what changed", "memory history"):
+            history = self.memory.get_fact_history()
+            if not history:
+                return "No fact changes recorded yet."
+            lines = [f"- [{h['when'][:10]}] {h['key']}: '{h['old']}' → '{h['new']}'" for h in history]
+            return "📋 Recent fact changes:\n" + "\n".join(lines)
+
+        # Wake time — intercept before time tool grabs it
+        wake_triggers = ["what time do i wake up", "when do i wake up",
+                         "what time i wake", "my wake up time", "when do i wakeup"]
+        if any(msg_lower.strip() == t for t in wake_triggers):
+            facts = self.memory.get_all_facts()
+            wake = facts.get("wake_time") or facts.get("wake_up_time")
+            if not wake:
+                # fallback to note keys, strip sentence to just time
+                for k, v in facts.items():
+                    if "wake" in k.lower():
+                        import re
+                        m = re.search(r"\d+\s*(?:am|pm)", v.lower())
+                        wake = m.group(0) if m else v
+                        break
+            if wake:
+                return f"You wake up at {wake} da."
+            return "I don't know your wake time yet. Tell me!"
+        # ── End memory intercepts ──
+
         _intent = detect_intent(message)
 
         # If ReAct thought suggests chat but dispatcher picked a tool — override
@@ -358,6 +425,16 @@ Summary:"""
 
         # Build full system prompt
         system = SHRRI_SYSTEM
+        # Load SOUL.md — always-on user profile
+        try:
+            soul_path = os.path.expanduser("~/.shrri/SOUL.md")
+            if os.path.exists(soul_path):
+                with open(soul_path) as _sf:
+                    _soul = _sf.read().strip()
+                if _soul:
+                    system += f"\n\n[User Profile — always follow this]\n{_soul}"
+        except Exception:
+            pass
         # Project context file
         _ctx = load_context_file()
         if _ctx:

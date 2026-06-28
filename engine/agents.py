@@ -69,3 +69,81 @@ class AgentRouter:
 
     def get_agent_task(self, category):
         return AGENT_TASK_ROUTING.get(category, "default")
+
+
+import threading
+
+ALWAYS_CHAT = ["i am ", "my name is", "i'm ", "naan ", "என்னோட", "help me", "plan my", "i have", "suggest"]
+
+# Phrases that are always chat, never tool calls
+ALWAYS_CHAT = ["i am ", "my name is", "i'm ", "naan ", "என்னோட", "help me", "plan my", "i have", "suggest"]
+
+TASK_SPLIT_PROMPT = """You are a task planner for SHRRI, a personal AI assistant.
+Analyze this message and decide if it contains MULTIPLE independent tasks that can run in parallel.
+
+Message: "{message}"
+
+If there are 2 or more independent tasks (e.g. "check my email AND tell me the weather"), respond with JSON:
+{{"split": true, "tasks": ["check my email", "tell me the weather"]}}
+
+If it is a single task or a conversation, respond with:
+{{"split": false}}
+
+Respond ONLY with valid JSON. No explanation."""
+
+
+class SubagentExecutor:
+    def __init__(self, router, dispatcher_fn, tool_runner_fn):
+        self.router = router
+        self.dispatch = dispatcher_fn
+        self.run_tool = tool_runner_fn
+
+    def should_split(self, message: str) -> list:
+        """Ask LLM if message has multiple parallel tasks. Returns list of tasks or []."""
+        prompt = TASK_SPLIT_PROMPT.replace("{message}", message)
+        try:
+            raw = self.router.chat(prompt, task="fast", web_search=False)
+            raw = raw.strip().strip("```json").strip("```").strip()
+            data = json.loads(raw)
+            if data.get("split") and len(data.get("tasks", [])) >= 2:
+                return data["tasks"]
+        except Exception:
+            pass
+        return []
+
+    def run_parallel(self, tasks: list) -> str:
+        """Run multiple tasks in parallel threads and combine results."""
+        results = [None] * len(tasks)
+        errors = [None] * len(tasks)
+
+        def run_task(i, task):
+            try:
+                intent = self.dispatch(task)
+                if isinstance(intent, dict) and intent.get("tool") not in ("none", None):
+                    tool_result = self.run_tool(intent, task)
+                    results[i] = f"[{task}]:\n{tool_result}"
+                else:
+                    # Pure chat task — ask LLM
+                    results[i] = f"[{task}]:\n{self.router.chat(task, task='fast')}"
+            except Exception as e:
+                errors[i] = f"[{task}]: Error — {e}"
+
+        threads = []
+        for i, task in enumerate(tasks):
+            t = threading.Thread(target=run_task, args=(i, task))
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join(timeout=45)
+
+        parts = []
+        for i, task in enumerate(tasks):
+            if results[i]:
+                parts.append(results[i])
+            elif errors[i]:
+                parts.append(errors[i])
+            else:
+                parts.append(f"[{task}]: timed out")
+
+        return "\n\n".join(parts)

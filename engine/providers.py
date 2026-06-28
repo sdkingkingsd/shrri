@@ -46,7 +46,9 @@ class CerebrasProvider:
             max_tokens=1024
         )
         msg = response.choices[0].message
-        return msg.content or getattr(msg, 'reasoning_content', None) or "No response"
+        text = msg.content if msg.content and msg.content.strip() else None
+        text = text or getattr(msg, 'reasoning_content', None)
+        return text.strip() if text else "No response"
 
 
 class NvidiaProvider:
@@ -93,3 +95,45 @@ class OllamaProvider:
             timeout=120
         )
         return response.json()["message"]["content"]
+
+
+class TempLLMProvider:
+    """ChatGPT via templlm browser automation — rate limit fallback."""
+    def __init__(self):
+        self.base_url = "http://localhost:8000"
+
+    def is_available(self):
+        try:
+            import requests
+            r = requests.get(f"{self.base_url}/health", timeout=3)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+    def chat(self, prompt, **kwargs):
+        try:
+            import requests
+            r = requests.post(
+                f"{self.base_url}/ask",
+                json={"prompt": prompt},
+                timeout=60
+            )
+            data = r.json()
+            response = data.get("response", "")
+            if not response or "Error" in response:
+                raise Exception(f"TempLLM bad response: {response}")
+            # Retry once if response looks corrupted (mashed/repeated fragments)
+            import re
+            words = response.split()
+            if len(words) > 5:
+                # crude corruption check: same short word-fragment repeated back to back
+                suspicious = any(words[i] == words[i+1] for i in range(len(words)-1) if len(words[i]) <= 3)
+                garbled = bool(re.search(r"[a-z][A-Z][a-z]+[A-Z]", response))  # camelCase mashups like "capiFrance"
+                if suspicious or garbled:
+                    r2 = requests.post(f"{self.base_url}/ask", json={"prompt": prompt}, timeout=60)
+                    response2 = r2.json().get("response", "")
+                    if response2 and len(response2) > 10:
+                        response = response2
+            return response.strip()
+        except Exception as e:
+            raise Exception(f"TempLLM error: {e}")
