@@ -2,120 +2,149 @@
 from datetime import datetime, timedelta
 import pytz
 
-def get_today_events() -> str:
+IST = pytz.timezone("Asia/Kolkata")
+
+
+def _get_service():
+    from googleapiclient.discovery import build
+    from google.oauth2.credentials import Credentials
+    import os, pickle
+
+    token_path = os.path.expanduser("~/.shrri/calendar_token.pickle")
+    with open(token_path, 'rb') as f:
+        creds = pickle.load(f)
+    return build('calendar', 'v3', credentials=creds)
+
+
+def _label_for_date(target_date, now) -> str:
+    delta = (target_date - now.date()).days
+    if delta == 0:
+        return "today"
+    if delta == 1:
+        return "tomorrow"
+    return target_date.strftime("%A, %d %b")
+
+
+def get_events_for_date(target_date) -> str:
+    """Get events for any single date. target_date is a date object (IST)."""
     try:
-        from googleapiclient.discovery import build
-        from tools.gmail import get_gmail_service
-        creds = get_gmail_service()._http.credentials
-        service = build("calendar", "v3", credentials=creds)
-        tz = pytz.timezone("Asia/Kolkata")
-        now = datetime.now(tz)
-        start = now.replace(hour=0, minute=0, second=0).isoformat()
-        end = now.replace(hour=23, minute=59, second=59).isoformat()
-        events = service.events().list(
-            calendarId="primary", timeMin=start, timeMax=end,
-            singleEvents=True, orderBy="startTime"
-        ).execute().get("items", [])
+        service = _get_service()
+        now = datetime.now(IST)
+        label = _label_for_date(target_date, now)
+
+        start = IST.localize(datetime.combine(target_date, datetime.min.time()))
+        end = IST.localize(datetime.combine(target_date, datetime.max.time()))
+
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=start.isoformat(),
+            timeMax=end.isoformat(),
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+
         if not events:
-            return "No events scheduled for today."
-        lines = ["Today's events:"]
-        for e in events:
-            start_t = e["start"].get("dateTime", e["start"].get("date", ""))
-            t = datetime.fromisoformat(start_t).strftime("%I:%M %p") if "T" in start_t else "All day"
-            lines.append(f"  - {t}: {e.get('summary', 'No title')}")
+            return f"No events scheduled for {label}."
+
+        lines = [f"📅 Events for {label}:"]
+        for event in events:
+            start_info = event['start'].get('dateTime', event['start'].get('date'))
+            if 'T' in start_info:
+                dt = datetime.fromisoformat(start_info)
+                time_str = dt.strftime('%I:%M %p')
+            else:
+                time_str = "All day"
+            summary = event.get('summary', 'No title')
+            lines.append(f"  • {time_str} — {summary}")
+
         return "\n".join(lines)
-    except Exception as ex:
-        return f"GAP: calendar error — {ex}"
+
+    except Exception as e:
+        return f"GAP: could not fetch calendar events — {e}"
+
+
+def get_today_events() -> str:
+    """Get today's events. Thin wrapper kept for backward compatibility."""
+    return get_events_for_date(datetime.now(IST).date())
+
 
 def get_upcoming_events(days=7) -> str:
     try:
-        from googleapiclient.discovery import build
-        from tools.gmail import get_gmail_service
-        creds = get_gmail_service()._http.credentials
-        service = build("calendar", "v3", credentials=creds)
-        tz = pytz.timezone("Asia/Kolkata")
-        now = datetime.now(tz)
-        end = (now + timedelta(days=days)).isoformat()
-        events = service.events().list(
-            calendarId="primary", timeMin=now.isoformat(), timeMax=end,
-            singleEvents=True, orderBy="startTime", maxResults=10
-        ).execute().get("items", [])
+        service = _get_service()
+        now = datetime.now(IST)
+        end = now + timedelta(days=days)
+
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=now.isoformat(),
+            timeMax=end.isoformat(),
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+
         if not events:
             return f"No events in the next {days} days."
-        lines = [f"Upcoming events ({days} days):"]
-        for e in events:
-            start_t = e["start"].get("dateTime", e["start"].get("date", ""))
-            t = datetime.fromisoformat(start_t).strftime("%a %b %d, %I:%M %p") if "T" in start_t else start_t
-            lines.append(f"  - {t}: {e.get('summary', 'No title')}")
+
+        lines = [f"📅 Upcoming events (next {days} days):"]
+        for event in events:
+            start_info = event['start'].get('dateTime', event['start'].get('date'))
+            if 'T' in start_info:
+                dt = datetime.fromisoformat(start_info)
+                time_str = dt.strftime('%a %d %b, %I:%M %p')
+            else:
+                time_str = f"{start_info} (All day)"
+            summary = event.get('summary', 'No title')
+            lines.append(f"  • {time_str} — {summary}")
+
         return "\n".join(lines)
-    except Exception as ex:
-        return f"GAP: calendar error — {ex}"
+
+    except Exception as e:
+        return f"GAP: could not fetch calendar events — {e}"
+
 
 def create_event(message: str) -> str:
-    """Parse natural language and create a calendar event."""
     try:
         import re
-        from googleapiclient.discovery import build
-        from tools.gmail import get_gmail_service
-        creds = get_gmail_service()._http.credentials
-        service = build("calendar", "v3", credentials=creds)
+        service = _get_service()
+        now = datetime.now(IST)
+        msg = message.lower()
 
-        tz = pytz.timezone("Asia/Kolkata")
-        now = datetime.now(tz)
+        if 'tomorrow' in msg:
+            event_date = now.date() + timedelta(days=1)
+        elif 'today' in msg:
+            event_date = now.date()
+        else:
+            event_date = now.date()
 
-        # Extract time
-        time_match = re.search(r'at\s+(\d{1,2})(?:[:.:](\d{2}))?\s*(am|pm)?', message, re.IGNORECASE)
+        time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', msg)
         hour, minute = 9, 0
         if time_match:
             hour = int(time_match.group(1))
             minute = int(time_match.group(2)) if time_match.group(2) else 0
             period = time_match.group(3)
-            if period and period.lower() == 'pm' and hour != 12:
+            if period == 'pm' and hour != 12:
                 hour += 12
-            if period and period.lower() == 'am' and hour == 12:
+            if period == 'am' and hour == 12:
                 hour = 0
 
-        # Extract date
-        msg = message.lower()
-        if 'tomorrow' in msg:
-            event_date = now + timedelta(days=1)
-        elif 'today' in msg:
-            event_date = now
-        elif 'next week' in msg:
-            event_date = now + timedelta(days=7)
-        else:
-            day_match = re.search(r'on\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)', msg)
-            if day_match:
-                days_map = {'monday':0,'tuesday':1,'wednesday':2,'thursday':3,'friday':4,'saturday':5,'sunday':6}
-                target = days_map[day_match.group(1)]
-                current = now.weekday()
-                diff = (target - current) % 7 or 7
-                event_date = now + timedelta(days=diff)
-            else:
-                event_date = now + timedelta(days=1)
-
-        # Extract title
-        title = "Meeting"
-        for marker in ["add ", "create ", "schedule ", "set up ", "book "]:
-            idx = msg.find(marker)
-            if idx != -1:
-                rest = msg[idx+len(marker):]
-                # Remove time/date parts
-                rest = re.sub(r'(tomorrow|today|next week|on \w+|at \d+.*)', '', rest).strip()
-                if rest:
-                    title = rest.title()
-                break
-
-        start_dt = event_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        start_dt = IST.localize(datetime.combine(event_date, datetime.min.time().replace(hour=hour, minute=minute)))
         end_dt = start_dt + timedelta(hours=1)
+
+        rest = message
+        rest = re.sub(r'(tomorrow|today|next week|on \w+|at \d+.*)', '', rest).strip()
+        rest = re.sub(r'^(remind me to|add event|schedule|create event|set up)\b', '', rest, flags=re.IGNORECASE).strip()
+        title = rest or "New Event"
 
         event = {
             'summary': title,
             'start': {'dateTime': start_dt.isoformat(), 'timeZone': 'Asia/Kolkata'},
-            'end':   {'dateTime': end_dt.isoformat(),   'timeZone': 'Asia/Kolkata'},
+            'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Kolkata'},
         }
-        result = service.events().insert(calendarId='primary', body=event).execute()
-        return f"📅 Event created: '{result['summary']}' on {start_dt.strftime('%a %b %d at %I:%M %p')}"
+
+        created = service.events().insert(calendarId='primary', body=event).execute()
+        return f"📅 Event created: {title} on {start_dt.strftime('%d %b at %I:%M %p')}"
 
     except Exception as e:
         return f"GAP: could not create event — {e}"

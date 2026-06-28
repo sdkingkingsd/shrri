@@ -6,7 +6,8 @@ from .providers import (
     GroqProvider,
     CerebrasProvider,
     NvidiaProvider,
-    OllamaProvider
+    OllamaProvider,
+    TempLLMProvider
 )
 
 PROVIDER_PRIORITY = ["groq", "cerebras", "nvidia", "ollama"]
@@ -100,6 +101,7 @@ _FALLBACK_MAP = {
     "reminder_list":     ("reminder", "list"),
     "calendar_create":   ("calendar", "create"),
     "calendar_today":    ("calendar", "today"),
+    "calendar_date":     ("calendar", "date"),
     "calendar_upcoming": ("calendar", "upcoming"),
     "weather":           ("weather", "get"),
 }
@@ -223,6 +225,21 @@ class Router:
                 print(f"[SHRRI] {provider_name} failed: {e} — trying next provider...")
                 continue
 
+        # All 4 providers failed — try templlm (ChatGPT via browser) as last resort
+        try:
+            templlm = TempLLMProvider()
+            if templlm.is_available():
+                print("[SHRRI] All providers failed — falling back to templlm (ChatGPT)")
+                return templlm.chat(message)
+            else:
+                print("[SHRRI] templlm not available — starting it...")
+                import subprocess
+                subprocess.Popen(["templlm", "status"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                import time; time.sleep(5)
+                if templlm.is_available():
+                    return templlm.chat(message)
+        except Exception as e:
+            print(f"[SHRRI] templlm fallback failed: {e}")
         return "ERROR: All providers failed. Check your keys and internet connection."
 
     def status(self):

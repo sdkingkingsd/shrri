@@ -63,6 +63,7 @@ Tools available:
 - whatsapp_read: read/check whatsapp messages
 - weather: get weather information
 - calendar_today: check today's schedule/events
+- calendar_date: check schedule for a specific day (tomorrow, a weekday name, or a specific date)
 - calendar_upcoming: check upcoming/this week's events
 - calendar_create: create/add a new event or meeting
 - reminder_set: set a reminder or alert
@@ -117,6 +118,8 @@ def detect_intent(message: str) -> dict:
         return {"tool": "weather", "action": "get", "params": {"query": message}}
     elif tool == "calendar_today":
         return {"tool": "calendar", "action": "today", "params": {}}
+    elif tool == "calendar_date":
+        return {"tool": "calendar", "action": "date", "params": {"query": message}}
     elif tool == "calendar_upcoming":
         return {"tool": "calendar", "action": "upcoming", "params": {"days": 7}}
     elif tool == "calendar_create":
@@ -210,9 +213,20 @@ def run_tool(intent: dict, message: str) -> str:
         return set_reminder(params.get("query", message))
 
     if tool == "calendar":
-        from tools.calendar_tool import get_today_events, get_upcoming_events
+        from tools.calendar_tool import get_today_events, get_upcoming_events, get_events_for_date
         if action == "today":
             return get_today_events()
+        if action == "date":
+            from dateparser.search import search_dates
+            results = search_dates(
+                params.get("query", message),
+                settings={"PREFER_DATES_FROM": "future", "TIMEZONE": "Asia/Kolkata", "TO_TIMEZONE": "Asia/Kolkata", "RETURN_AS_TIMEZONE_AWARE": True},
+                languages=["en"],
+            )
+            if not results:
+                return "GAP: couldn't understand which date you meant."
+            _, target = results[-1]
+            return get_events_for_date(target.date())
         if action == "create":
             from tools.calendar_tool import create_event
             return create_event(params.get("query", message))
