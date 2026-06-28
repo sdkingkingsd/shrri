@@ -177,6 +177,40 @@ def set_reminder(message: str) -> str:
         return f"GAP: reminder failed — {e}"
 
 
+
+def delete_all_reminders() -> str:
+    """Delete all SHRRI reminders — both cron (daily) and at (one-shot)."""
+    try:
+        deleted = []
+        # Remove cron entries
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            lines = result.stdout.strip().split('\n')
+            kept = [l for l in lines if not ('notify-send' in l and 'SHRRI Reminder' in l)]
+            removed = len(lines) - len(kept)
+            new_crontab = '\n'.join(kept) + '\n'
+            subprocess.run(['crontab', '-'], input=new_crontab, text=True, check=True)
+            if removed:
+                deleted.append(f"{removed} daily reminder(s)")
+        # Remove at jobs
+        atq = subprocess.run(['atq'], capture_output=True, text=True)
+        if atq.returncode == 0 and atq.stdout.strip():
+            count = 0
+            for line in atq.stdout.strip().split('\n'):
+                parts = line.split('\t') if '\t' in line else line.split()
+                job_id = parts[0]
+                cat_result = subprocess.run(['at', '-c', job_id], capture_output=True, text=True)
+                if 'SHRRI Reminder' in cat_result.stdout:
+                    subprocess.run(['atrm', job_id], capture_output=True)
+                    count += 1
+            if count:
+                deleted.append(f"{count} one-shot reminder(s)")
+        if not deleted:
+            return "No reminders to delete."
+        return "✅ Deleted: " + ", ".join(deleted) + "."
+    except Exception as e:
+        return f"GAP: {e}"
+
 def list_reminders() -> str:
     """Show all scheduled reminders — both recurring (cron) and one-shot (at)."""
     try:

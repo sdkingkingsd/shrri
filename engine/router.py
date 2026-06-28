@@ -99,6 +99,7 @@ _FALLBACK_MAP = {
     "notes_delete":      ("notes", "delete"),
     "reminder_set":      ("reminder", "set"),
     "reminder_list":     ("reminder", "list"),
+    "reminder_delete":   ("reminder", "delete_all"),
     "calendar_create":   ("calendar", "create"),
     "calendar_today":    ("calendar", "today"),
     "calendar_date":     ("calendar", "date"),

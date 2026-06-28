@@ -68,6 +68,7 @@ Tools available:
 - calendar_create: create/add a new event or meeting
 - reminder_set: set a reminder or alert
 - reminder_list: show existing reminders
+- reminder_delete: delete all reminders or clear all reminders
 - notes_save: save/add/remember a note
 - notes_show: show/list/find notes
 - notes_delete: delete a note
@@ -128,6 +129,8 @@ def detect_intent(message: str) -> dict:
         return {"tool": "reminder", "action": "set", "params": {"query": message}}
     elif tool == "reminder_list":
         return {"tool": "reminder", "action": "list", "params": {}}
+    elif tool == "reminder_delete":
+        return {"tool": "reminder", "action": "delete_all", "params": {}}
     elif tool == "notes_save":
         return {"tool": "notes", "action": "save", "params": {"query": message}}
     elif tool == "notes_show":
@@ -207,9 +210,11 @@ def run_tool(intent: dict, message: str) -> str:
         return show_notes(params.get("query", message))
 
     if tool == "reminder":
-        from tools.reminder_tool import set_reminder, list_reminders
+        from tools.reminder_tool import set_reminder, list_reminders, delete_all_reminders
         if action == "list":
             return list_reminders()
+        if action == "delete_all":
+            return delete_all_reminders()
         return set_reminder(params.get("query", message))
 
     if tool == "calendar":
