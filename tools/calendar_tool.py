@@ -51,7 +51,8 @@ def get_events_for_date(target_date) -> str:
         for event in events:
             start_info = event['start'].get('dateTime', event['start'].get('date'))
             if 'T' in start_info:
-                dt = datetime.fromisoformat(start_info)
+                dt = datetime.fromisoformat(start_info.replace('Z', '+00:00'))
+                dt = dt.astimezone(IST)
                 time_str = dt.strftime('%I:%M %p')
             else:
                 time_str = "All day"
@@ -91,7 +92,8 @@ def get_upcoming_events(days=7) -> str:
         for event in events:
             start_info = event['start'].get('dateTime', event['start'].get('date'))
             if 'T' in start_info:
-                dt = datetime.fromisoformat(start_info)
+                dt = datetime.fromisoformat(start_info.replace('Z', '+00:00'))
+                dt = dt.astimezone(IST)
                 time_str = dt.strftime('%a %d %b, %I:%M %p')
             else:
                 time_str = f"{start_info} (All day)"
