@@ -1,68 +1,32 @@
 import re
 
 
-def detect_intent(message: str) -> dict:
+# These tools are hardcoded — faster and more reliable than LLM for exact matches
+def _hardcoded_intent(message: str):
     msg = message.lower()
 
-    # Deterministic arithmetic — no AI guessing needed. This must run before
-    # other checks since a math expression won't match anything else, but we
-    # still want it caught early and routed to a real calculator instead of
-    # falling through to the LLM, which has proven unreliable at arithmetic
-    # (confirmed: invented wrong intermediate results, got stuck in
-    # self-contradiction loops trying to "verify" bad math).
-    has_arithmetic_symbols = bool(re.search(
-        r"\d+\s*(?:[\+\-\*/%\^]|times|multiplied by|plus|minus|divided by)\s*\d+",
-        msg
-    ))
-    if has_arithmetic_symbols:
+    # Math
+    if re.search(r"\d+\s*(?:[\+\-\*/%\^]|times|multiplied by|plus|minus|divided by)\s*\d+", msg):
+        return {"tool": "math", "action": "calculate", "params": {"query": message}}
+    if re.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
 
-    # Real system date — check BEFORE time, since "today" can overlap
-    date_triggers = [
-        "what date", "today's date", "what day is it", "current date",
-        "what's the date", "which date",
-    ]
-    if any(t in msg for t in date_triggers):
+    # Time/Date
+    if any(t in msg for t in ["what date", "today's date", "what day is it", "current date", "which date"]):
         return {"tool": "date", "action": "get_date", "params": {}}
-
-    # Real system time — no AI guessing needed
-    time_triggers = [
-        "what time", "current time", "time now", "what's the time",
-        "tell me the time",
-    ]
-    if any(t in msg for t in time_triggers):
+    if any(t in msg for t in ["what time", "current time", "time now", "what's the time", "tell me the time"]):
         return {"tool": "time", "action": "get_time", "params": {}}
 
-    # Read full email body — explain/open specific email
-    if any(x in msg for x in ["explain", "open", "show", "read body", "what does", "full email"]):
-        if any(x in msg for x in ["email", "mail", "acm", "cisco", "ubs", "philips", "vitcc", "placement", "transport"]):
-            return {"tool": "gmail", "action": "read_body", "params": {"query": message}}
+    # Python code execution
+    if "```python" in message:
+        return {"tool": "pyexec", "action": "run", "params": {"query": message}}
 
-    # Explicit mail phrases — these unambiguously mean "send an email", even with no
-    # address typed yet, so the dispatcher can catch a missing recipient and say so.
-    explicit_mail_triggers = [
-        "send email", "send mail", "shoot an email", "shoot a mail",
-        "write an email", "write a mail", "compose email", "compose mail",
-        "mail to", "email to", "drop a mail", "drop an email",
-        "fire an email", "fire a mail",
-    ]
+    # YouTube
+    if "youtube.com" in msg or "youtu.be" in msg:
+        return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
 
-    # Ambiguous phrases — these could mean a Gmail send OR something else entirely
-    # ("send message to chatgpt"), so only treat them as Gmail send if a real
-    # email address is actually present in the message.
-    ambiguous_send_triggers = [
-        "send message", "send this", "send it", "send to",
-        "draft and send", "forward this", "forward to", "message to",
-        "ping them", "ping him", "ping her", "reach out to", "send over",
-        "shoot this", "shoot over", "pass this", "pass along",
-        "let them know", "notify them", "inform them",
-    ]
-
-    has_email_address = bool(re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg))
-    is_explicit_mail = any(t in msg for t in explicit_mail_triggers)
-    is_ambiguous_send = any(t in msg for t in ambiguous_send_triggers) or "send" in msg
-
-    if is_explicit_mail or (has_email_address and is_ambiguous_send):
+    # Email address present = likely gmail send
+    if re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg) and any(t in msg for t in ["send", "mail", "email", "write", "compose"]):
         to = re.search(r"to ([^\s]+@[^\s]+)", message, re.IGNORECASE)
         subject = re.search(r"subject (.+?) body", message, re.IGNORECASE)
         body = re.search(r"body (.+)$", message, re.IGNORECASE | re.DOTALL)
@@ -72,109 +36,123 @@ def detect_intent(message: str) -> dict:
             "body": body.group(1).strip() if body else message
         }}
 
-    # Read inbox
-    if any(x in msg for x in [
-        "read email", "check email", "check my email", "my inbox", "unread", "gmail", "emails", "email",
-        "any mail", "check mail", "new mail", "new emails", "what emails",
-        "got any mail", "any messages", "check messages"
-    ]):
+    return None
+
+
+def _llm_detect_intent(message: str) -> dict:
+    """Use LLM to understand message intent — no keyword lists needed."""
+    from engine.router import Router
+    router = Router()
+
+    prompt = f"""You are an intent classifier for SHRRI, a personal AI assistant.
+Shrridharshan speaks Tamil, Tanglish, and English. Understand all three.
+Tamil hints: "podu" = send/do, "pesinom" = we talked, "pathi" = about, "ku" = to, "check panu" = check, "paru" = look/check.
+IMPORTANT RULES:
+- Single words like "dei", "da", "yes", "yeah", "ok", "sure" = always "chat"
+- Follow-up messages like "summarise it", "explain it", "read it" = "chat" (continuing previous topic)
+- "share me", "show me" after a previous tool result = "chat"
+- Only classify as a tool if the message CLEARLY and SPECIFICALLY requests that tool's action
+Classify this message into exactly ONE of these tools:
+
+Tools available:
+- gmail_read: read/check emails or inbox
+- gmail_search: search for specific email
+- gmail_read_body: open/explain/read full content of a specific email
+- gmail_send: send an email (only if explicitly asked to send/write email)
+- whatsapp_send: send a whatsapp message to someone
+- whatsapp_read: read/check whatsapp messages
+- weather: get weather information
+- calendar_today: check today's schedule/events
+- calendar_upcoming: check upcoming/this week's events
+- calendar_create: create/add a new event or meeting
+- reminder_set: set a reminder or alert
+- reminder_list: show existing reminders
+- notes_save: save/add/remember a note
+- notes_show: show/list/find notes
+- notes_delete: delete a note
+- briefing: morning/daily briefing or summary
+- news: get latest news or current events
+- files: find/search/open files on computer
+- system: system controls like shutdown, lock screen
+- schedule_add: schedule an automated recurring task
+- convsearch: search past conversations with SHRRI (user asking about previous chats, what was said before, past discussions)
+- chat: general conversation, questions, explanations, help — anything else
+
+Message: "{message}"
+
+Reply with ONLY the tool name, nothing else. No explanation."""
+
+    try:
+        result = router.chat(prompt, task="fast", web_search=False)
+        tool = result.strip().lower().split()[0].rstrip(".,:")
+        return tool
+    except Exception:
+        return "chat"
+
+
+def detect_intent(message: str) -> dict:
+    # Try hardcoded first (instant, no API call)
+    hardcoded = _hardcoded_intent(message)
+    if hardcoded:
+        return hardcoded
+
+    # Use LLM to understand intent
+    tool = _llm_detect_intent(message)
+
+    msg = message.lower()
+
+    if tool == "gmail_read":
         return {"tool": "gmail", "action": "read", "params": {"max_results": 5}}
-
-    # Search email
-    if any(x in msg for x in ["search email", "find email", "email from", "email about", "look for email", "find mail"]):
+    elif tool == "gmail_search":
         return {"tool": "gmail", "action": "search", "params": {"query": message}}
-
-    # Percentage math: "15% of 840", "what is 20% of 500"
-    import re as _re2
-    if _re2.search(r"[0-9]+\s*%\s*of\s*[0-9]+", msg):
-        return {"tool": "math", "action": "calculate", "params": {"query": message}}
-
-    # WhatsApp
-    if any(t in msg for t in ["send whatsapp", "whatsapp to", "whatsapp message",
-                               "message on whatsapp", "wa message"]):
+    elif tool == "gmail_read_body":
+        return {"tool": "gmail", "action": "read_body", "params": {"query": message}}
+    elif tool == "gmail_send":
+        return {"tool": "gmail", "action": "send", "params": {"query": message}}
+    elif tool == "whatsapp_send":
         return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
-
-    # Daily briefing
-    if any(t in msg for t in ["good morning", "good evening", "good afternoon",
-                               "daily briefing", "morning briefing", "my briefing"]):
-        return {"tool": "briefing", "action": "get", "params": {}}
-
-    # WhatsApp reader
-    # Catch-all: any mention of "whatsapp" that wasn't already
-    # matched by the "send whatsapp" rule above is treated as a read request.
-    if "whatsapp" in msg or "wa " in msg:
+    elif tool == "whatsapp_read":
         return {"tool": "wa_read", "action": "read", "params": {"query": message}}
-
-    # Python executor
-    if "```python" in message:
-        return {"tool": "pyexec", "action": "run", "params": {"query": message}}
-
-    # Python executor
-    if "```python" in message:
-        return {"tool": "pyexec", "action": "run", "params": {"query": message}}
-
-    # YouTube summarizer
-    if "youtube.com" in msg or "youtu.be" in msg or "summarize" in msg or "summarise" in msg:
-        return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
-
-    # File manager
-    _file_words = ["find all files", "find my files", "list files", "show files",
-                   "find all pdfs", "find all images", "find all videos",
-                   "files in my", "find file named", "open file",
-                   "my downloads folder", "my documents folder"]
-    if any(t in msg for t in _file_words):
-        _fact = "open" if "open file" in msg else "search"
-        return {"tool": "files", "action": _fact, "params": {"query": message}}
-
-    # System control
-    system_triggers = ["lock screen", "lock my screen", "shutdown", "shut down",
-                       "power off", "restart", "reboot", "cancel shutdown",
-                       "volume up", "volume down", "volume", "mute",
-                       "brightness up", "brightness down", "brightness"]
-    if any(t in msg for t in system_triggers):
-        return {"tool": "system", "action": "control", "params": {"query": message}}
-
-    # Notes
-    if any(t in msg for t in ["save note", "add note", "note:", "remember this", "make a note"]):
-        return {"tool": "notes", "action": "save", "params": {"query": message}}
-    if any(t in msg for t in ["show notes", "my notes", "show my notes", "list notes", "search notes", "find note"]):
-        return {"tool": "notes", "action": "show", "params": {"query": message}}
-    if any(t in msg for t in ["delete note", "remove note"]):
-        return {"tool": "notes", "action": "delete", "params": {"query": message}}
-
-    # Reminders
-    if any(t in msg for t in ["remind me", "set a reminder", "reminder at", "alert me"]):
-        return {"tool": "reminder", "action": "set", "params": {"query": message}}
-    if any(t in msg for t in ["my reminders", "show reminders", "list reminders"]):
-        return {"tool": "reminder", "action": "list", "params": {}}
-
-    # Calendar
-    # Create calendar event
-    create_triggers = ["add event", "create event", "schedule meeting", "add meeting",
-                       "book meeting", "set up meeting", "add to calendar", "schedule a",
-                       "create a meeting", "add a meeting"]
-    if any(t in msg for t in create_triggers):
-        return {"tool": "calendar", "action": "create", "params": {"query": message}}
-
-    calendar_today = ["today's events", "what's on my calendar", "my schedule today",
-                      "calendar today", "what do i have today", "my events today",
-                      "anything on my calendar", "what's scheduled"]
-    if any(t in msg for t in calendar_today):
-        return {"tool": "calendar", "action": "today", "params": {}}
-
-    calendar_upcoming = ["upcoming events", "next week", "this week calendar",
-                         "schedule this week", "what's coming up", "my calendar",
-                         "coming up this week", "this week", "next 7 days", "upcoming"]
-    if any(t in msg for t in calendar_upcoming):
-        return {"tool": "calendar", "action": "upcoming", "params": {"days": 7}}
-
-    # Weather
-    weather_triggers = ["weather", "temperature", "temp in", "how hot", "how cold", "raining in", "forecast"]
-    if any(t in msg for t in weather_triggers):
+    elif tool == "weather":
         return {"tool": "weather", "action": "get", "params": {"query": message}}
-
-    return {"tool": "none", "action": None, "params": {}}
-
+    elif tool == "calendar_today":
+        return {"tool": "calendar", "action": "today", "params": {}}
+    elif tool == "calendar_upcoming":
+        return {"tool": "calendar", "action": "upcoming", "params": {"days": 7}}
+    elif tool == "calendar_create":
+        return {"tool": "calendar", "action": "create", "params": {"query": message}}
+    elif tool == "reminder_set":
+        return {"tool": "reminder", "action": "set", "params": {"query": message}}
+    elif tool == "reminder_list":
+        return {"tool": "reminder", "action": "list", "params": {}}
+    elif tool == "notes_save":
+        return {"tool": "notes", "action": "save", "params": {"query": message}}
+    elif tool == "notes_show":
+        return {"tool": "notes", "action": "show", "params": {"query": message}}
+    elif tool == "notes_delete":
+        return {"tool": "notes", "action": "delete", "params": {"query": message}}
+    elif tool == "briefing":
+        return {"tool": "briefing", "action": "get", "params": {}}
+    elif tool == "news":
+        from tools.search import search
+        return {"tool": "search", "action": "news", "result": search(message)}
+    elif tool == "files":
+        return {"tool": "files", "action": "search", "params": {"query": message}}
+    elif tool == "system":
+        return {"tool": "system", "action": "control", "params": {"query": message}}
+    elif tool == "schedule_add":
+        from tools.scheduler import add_schedule
+        result = add_schedule(message)
+        return {"tool": "schedule", "action": "add", "params": {}, "result": result}
+    elif tool == "convsearch":
+        from tools.conversation_log import search_conversations, get_recent
+        if any(w in msg for w in ["yesterday", "today", "recent", "last"]):
+            return {"tool": "convsearch", "result": get_recent(1)}
+        return {"tool": "convsearch", "result": search_conversations(message)}
+    elif tool == "youtube":
+        return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
+    else:
+        return {"tool": "none", "action": None, "params": {}}
 
 
 def run_tool(intent: dict, message: str) -> str:
@@ -184,7 +162,8 @@ def run_tool(intent: dict, message: str) -> str:
 
     if tool == "whatsapp":
         from tools.whatsapp_tool import send_whatsapp
-        return send_whatsapp(params.get("query", message))
+        result = send_whatsapp(params.get("query", message))
+        return result
 
     if tool == "briefing":
         from tools.briefing_tool import get_briefing
@@ -243,12 +222,29 @@ def run_tool(intent: dict, message: str) -> str:
         from tools.weather_tool import get_weather
         import re as _wr
         DEFAULT_LOCATION = "Chennai"  # change to your home city if needed
+        TRAILING_FILLER = [
+            "right now", "right", "now", "today", "currently", "please",
+            "at the moment", "outside", "over there",
+        ]
         _wm = _wr.search(r"(?:weather|temp|temperature|forecast)\s+(?:in|for|at)\s+(.+)", params.get("query", message), _wr.IGNORECASE)
         if _wm:
             candidate = _wm.group(1).strip()
-            # Sanity check: a real place name shouldn't contain question-ish words
-            bad_words = ["eppadi", "iruku", "how", "is", "it", "today", "now"]
-            if candidate and not any(w in candidate.lower().split() for w in bad_words) and len(candidate) < 40:
+            # Strip trailing filler words/phrases (longest first) since they're
+            # part of natural question phrasing, not the place name itself.
+            changed = True
+            while changed:
+                changed = False
+                lowered = candidate.lower().strip()
+                for filler in sorted(TRAILING_FILLER, key=len, reverse=True):
+                    if lowered.endswith(filler):
+                        candidate = candidate[: len(candidate) - len(filler)].strip(" ?.,!")
+                        changed = True
+                        break
+            # Reject only if what's LEFT after stripping still looks like a
+            # question word rather than a place name.
+            bad_words = {"eppadi", "iruku", "how", "is", "it"}
+            words = candidate.lower().split()
+            if candidate and not any(w in bad_words for w in words) and len(candidate) < 40:
                 location = candidate
             else:
                 location = DEFAULT_LOCATION
