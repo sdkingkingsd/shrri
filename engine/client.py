@@ -427,6 +427,25 @@ Summary:"""
 
         # Build full system prompt
         system = SHRRI_SYSTEM
+        # Load daily notes — today + yesterday (like OpenClaw)
+        try:
+            from datetime import datetime, timedelta
+            import os
+            memory_dir = os.path.expanduser("~/.shrri/memory")
+            daily_context = []
+            for delta in [1, 0]:  # yesterday first, then today
+                day = (datetime.now() - timedelta(days=delta)).strftime("%Y-%m-%d")
+                note_file = os.path.join(memory_dir, f"{day}.md")
+                if os.path.exists(note_file):
+                    with open(note_file) as _nf:
+                        content = _nf.read().strip()
+                    if content:
+                        label = "Yesterday" if delta == 1 else "Today"
+                        daily_context.append("[" + label + "s Notes - " + day + "]\n" + content[:800])
+            if daily_context:
+                system += "\n\n" + "\n\n".join(daily_context)
+        except Exception:
+            pass
         # Load SOUL.md — always-on user profile
         try:
             soul_path = os.path.expanduser("~/.shrri/SOUL.md")
