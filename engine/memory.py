@@ -73,7 +73,59 @@ class Memory:
         """)
         self.conn.commit()
 
+    def _scan_injection(self, key, value):
+        """Block prompt injection, exfiltration, and junk before saving."""
+        import re
+        # Block invisible unicode characters
+        if any(ord(ch) in range(0x200B, 0x200F) or ord(ch) in range(0x202A, 0x202F) for ch in value):
+            return False, "invisible unicode detected"
+        # Block prompt injection patterns
+        injection_patterns = [
+            r"ignore (all |previous |above )?instructions",
+            r"system prompt",
+            r"you are now",
+            r"disregard (all )?previous",
+            r"forget (everything|all)",
+            r"new personality",
+            r"act as (a |an )?",
+            r"jailbreak",
+            r"do anything now",
+        ]
+        for pattern in injection_patterns:
+            if re.search(pattern, value.lower()):
+                return False, f"injection pattern: {pattern}"
+        # Block credential exfiltration patterns
+        exfil_patterns = [
+            r"(send|email|post|upload|exfiltrate).{0,30}(password|key|token|secret|credential)",
+            r"curl.{0,50}http",
+            r"wget.{0,50}http",
+            r"ssh.{0,30}@",
+            r"api[_-]?key\s*=",
+        ]
+        for pattern in exfil_patterns:
+            if re.search(pattern, value.lower()):
+                return False, f"exfiltration pattern: {pattern}"
+        # Block junk keys
+        junk_keys = {"ai", "type", "creator_s_name", "none", "null", "undefined"}
+        if key.lower().strip() in junk_keys:
+            return False, f"junk key: {key}"
+        # Block very short/meaningless values
+        if len(value.strip()) < 2:
+            return False, "value too short"
+        # Block values that are just punctuation or numbers only
+        if re.match(r"^[\d\s\.\,\!\?\-]+$", value.strip()):
+            return False, "numeric/punctuation only value"
+        # Block excessively long values (likely tool output, not a fact)
+        if len(value) > 300:
+            return False, "value too long (likely tool output)"
+        return True, "ok"
+
     def save_fact(self, key, value):
+        # Injection scan — block before saving
+        ok, reason = self._scan_injection(key, value)
+        if not ok:
+            print(f"[memory] blocked fact '{key}': {reason}")
+            return False
         now = datetime.now().isoformat()
         existing = self.conn.execute(
             "SELECT value FROM facts WHERE key=?", (key,)

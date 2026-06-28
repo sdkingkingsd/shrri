@@ -214,7 +214,9 @@ Summary:"""
             fact_text = " ".join(message.strip().split(" ")[2:])
             # Save directly without LLM call — use raw text as key+value
             key = "note_" + fact_text[:40].lower().replace(" ", "_").replace("'", "")
-            self.memory.save_fact(key, fact_text)
+            saved = self.memory.save_fact(key, fact_text)
+            if saved is False:
+                return "⚠️ That doesn't look like a valid fact to remember."
             # Also try async LLM extraction in background
             try:
                 import threading
