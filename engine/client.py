@@ -323,6 +323,25 @@ Summary:"""
                 return "I couldn't find anything about that in my notes da."
             except Exception:
                 pass
+        # DAG expand command — "expand 2026-06-28" or "expand yesterday"
+        if msg_lower.startswith("expand "):
+            target = message.strip()[7:].strip()
+            try:
+                from datetime import datetime as _dt, timedelta as _td
+                if target.lower() == "yesterday":
+                    target = (_dt.now() - _td(days=1)).strftime("%Y-%m-%d")
+                elif target.lower() == "today":
+                    target = _dt.now().strftime("%Y-%m-%d")
+                import sys as _sys; _sys.path.insert(0, "/home/shrridharshan/shrri")
+                from scripts.summary_dag import expand_summary, build_hourly_summaries, build_daily_summary
+                build_hourly_summaries(target)
+                build_daily_summary(target)
+                result = expand_summary(target)
+                if result:
+                    return result
+                return f"No DAG summary found for {target}"
+            except Exception as e:
+                return f"DAG expand error: {e}"
         # ── End memory intercepts ──
 
         _intent = detect_intent(message)
