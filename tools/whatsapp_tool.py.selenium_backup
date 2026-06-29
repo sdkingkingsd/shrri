@@ -1,0 +1,469 @@
+"""WhatsApp tool — sends via Selenium."""
+import re, time, urllib.parse
+
+CHROMEDRIVER = "/home/shrridharshan/.wdm/drivers/chromedriver/linux64/149.0.7827.155/chromedriver-linux64/chromedriver"
+CHROME_PROFILE = "/home/shrridharshan/.shrri/chrome_profile"
+
+def parse_whatsapp(message: str):
+    phone_match = re.search(r"to\s+(\+?\d[\d\s\-]{7,13}\d)", message, re.IGNORECASE)
+    if not phone_match:
+        return None, "GAP: no phone number found."
+    phone = re.sub(r"[\s\-]", "", phone_match.group(1))
+    if not phone.startswith("+"):
+        phone = "+91" + phone
+    text = ""
+    for marker in [" saying ", " message ", " that ", " body "]:
+        idx = message.lower().find(marker)
+        if idx != -1:
+            text = message[idx + len(marker):].strip()
+            break
+    if not text:
+        return None, "GAP: no message text found."
+    return (phone, text), None
+
+def _find_contact_phone(name: str) -> str:
+    """Search WhatsApp Web for a contact name and return their phone number."""
+    # We can't easily get phone from name without scraping contacts
+    # So we return None and let the send flow use name-based URL instead
+    return None
+
+def send_by_name(name: str, text: str) -> str:
+    """Send WhatsApp message by contact name using wa.me search."""
+    import subprocess, urllib.parse, time
+    from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    CHROMEDRIVER = "/home/shrridharshan/.wdm/drivers/chromedriver/linux64/149.0.7827.155/chromedriver-linux64/chromedriver"
+    CHROME_PROFILE = "/home/shrridharshan/.shrri/chrome_profile"
+
+    try:
+        options = Options()
+        options.add_argument("--user-data-dir=" + CHROME_PROFILE)
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
+        driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
+        wait = WebDriverWait(driver, 30)
+        driver.get("https://web.whatsapp.com")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@aria-label='Chat list']")))
+        time.sleep(4)
+
+        # Search for contact
+        search = driver.find_element(By.XPATH, "//*[@aria-label='Search or start a new chat']")
+        search.click()
+        search.send_keys(name)
+        time.sleep(2)
+
+        # Wait for search results and click matching contact
+        time.sleep(3)
+        matched_name = name
+        clicked = False
+
+        # Try clicking span with title containing the name
+        candidates = driver.find_elements(By.XPATH, "//span[@title]")
+        for c in candidates:
+            title = c.get_attribute("title") or ""
+            if name.lower() in title.lower() and len(title) < 60:
+                matched_name = title
+                try:
+                    c.click()
+                    clicked = True
+                    break
+                except Exception:
+                    # Try clicking parent
+                    try:
+                        driver.execute_script("arguments[0].click();", c)
+                        clicked = True
+                        break
+                    except Exception:
+                        continue
+
+        if not clicked:
+            driver.quit()
+            return "GAP: no contact found matching '" + name + "'. Check the exact name saved in your phone."
+        time.sleep(3)
+
+        # Type message
+        msg_box = wait.until(EC.presence_of_element_located(
+            (By.XPATH, "//div[@contenteditable='true' and @data-tab='10']")
+        ))
+        msg_box.click()
+        msg_box.send_keys(text)
+        time.sleep(1)
+
+        # Click send button
+        send_btn = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[@aria-label='Send']")
+        ))
+        send_btn.click()
+        time.sleep(2)
+        driver.quit()
+        return "Message sent to " + matched_name + ": \"" + text + "\""
+    except Exception as e:
+        driver.quit()
+        return "GAP: send by name failed — " + str(e)
+
+def send_whatsapp_now(phone: str, text: str) -> str:
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        options = Options()
+        options.add_argument(f"--user-data-dir={CHROME_PROFILE}")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--no-first-run")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
+        driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
+
+        encoded = urllib.parse.quote(text)
+        url = f"https://web.whatsapp.com/send?phone={phone}&text={encoded}"
+        driver.get(url)
+
+        print("SHRRI: Waiting for WhatsApp to load (up to 30s)...")
+        wait = WebDriverWait(driver, 60)
+        send_btn = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[@aria-label=\'Send\']")
+        ))
+        time.sleep(2)
+        send_btn.click()
+        time.sleep(3)
+        driver.quit()
+        return f"Message sent to {phone}: \"{text}\""
+    except Exception as e:
+        return f"GAP: WhatsApp failed — {e}"
+
+def send_whatsapp(message: str) -> str:
+    result, err = parse_whatsapp(message)
+    if err:
+        # No phone number — try name-based search
+        name_match = None
+        for pat in [
+            r"send\s+(?:a\s+)?message\s+to\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:saying|that|:)",
+            r"send\s+(?:this\s+)?to\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:in|on|via)",
+            r"message\s+to\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:saying|that)",
+            r"(?:to|message)\s+([a-zA-Z][a-zA-Z\s]{1,30}?)\s+(?:saying|that|:)",
+        ]:
+            name_match = re.search(pat, message, re.IGNORECASE)
+            if name_match:
+                break
+        if name_match:
+            name = name_match.group(1).strip()
+            text = ""
+            for marker in [" saying ", " that ", " message "]:
+                idx = message.lower().find(marker)
+                if idx != -1:
+                    text = message[idx + len(marker):].strip()
+                    break
+            if text:
+                return "WHATSAPP_NAME_PENDING|" + name + "|" + text
+        return err
+    phone, text = result
+    return "WHATSAPP_PENDING|" + phone + "|" + text
+
+
+def reply_to_message(contact: str, reply_text: str) -> str:
+    """Reply to the latest message from a contact."""
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.action_chains import ActionChains
+        import time
+
+        options = Options()
+        options.add_argument("--user-data-dir=" + CHROME_PROFILE)
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
+        driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
+        wait = WebDriverWait(driver, 30)
+        driver.get("https://web.whatsapp.com")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@aria-label='Chat list']")))
+        time.sleep(4)
+
+        search = driver.find_element(By.XPATH, "//*[@aria-label='Search or start a new chat']")
+        search.click()
+        search.send_keys(contact)
+        time.sleep(2)
+        chats = driver.find_elements(By.XPATH, "//*[@aria-label='Chat list']//*[@tabindex='-1']")
+        if not chats:
+            driver.quit()
+            return f"GAP: contact not found: {contact}"
+        chats[0].click()
+        time.sleep(3)
+
+        msgs = driver.find_elements(By.XPATH, "//div[contains(@class,'message-in')]")
+        if not msgs:
+            driver.quit()
+            return "GAP: no incoming messages to reply to."
+        last_msg = msgs[-1]
+
+        ActionChains(driver).move_to_element(last_msg).perform()
+        time.sleep(1)
+
+        try:
+            reply_btn = last_msg.find_element(By.XPATH, ".//*[@aria-label='Reply']")
+            reply_btn.click()
+        except Exception:
+            ActionChains(driver).context_click(last_msg).perform()
+            time.sleep(1)
+            reply_opt = driver.find_element(By.XPATH, "//*[text()='Reply']")
+            reply_opt.click()
+        time.sleep(1)
+
+        msg_box = wait.until(EC.presence_of_element_located(
+            (By.XPATH, "//div[@contenteditable='true' and @data-tab='10']")
+        ))
+        msg_box.click()
+        msg_box.send_keys(reply_text)
+        time.sleep(1)
+        send_btn = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[@aria-label='Send']")
+        ))
+        send_btn.click()
+        time.sleep(2)
+        driver.quit()
+        return f"Replied to {contact}: {reply_text}"
+    except Exception as e:
+        try: driver.quit()
+        except: pass
+        return f"GAP: reply failed - {e}"
+
+
+def send_media(contact: str, file_path: str, caption: str = "") -> str:
+    """Send an image or file to a WhatsApp contact."""
+    try:
+        import os
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        import time
+
+        file_path = os.path.expanduser(file_path)
+        if not os.path.exists(file_path):
+            return f"GAP: file not found - {file_path}"
+
+        options = Options()
+        options.add_argument("--user-data-dir=" + CHROME_PROFILE)
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
+        driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
+        wait = WebDriverWait(driver, 30)
+        driver.get("https://web.whatsapp.com")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@aria-label='Chat list']")))
+        time.sleep(4)
+
+        search = driver.find_element(By.XPATH, "//*[@aria-label='Search or start a new chat']")
+        search.click()
+        search.send_keys(contact)
+        time.sleep(2)
+        chats = driver.find_elements(By.XPATH, "//*[@aria-label='Chat list']//*[@tabindex='-1']")
+        if not chats:
+            driver.quit()
+            return f"GAP: contact not found: {contact}"
+        chats[0].click()
+        time.sleep(3)
+
+        attach = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//*[@aria-label='Attach' or @title='Attach']")
+        ))
+        attach.click()
+        time.sleep(1)
+
+        file_input = driver.find_element(By.XPATH, "//input[@accept and @type='file']")
+        file_input.send_keys(file_path)
+        time.sleep(3)
+
+        if caption:
+            try:
+                cap_box = driver.find_element(By.XPATH, "//div[@contenteditable='true' and @data-tab='10']")
+                cap_box.send_keys(caption)
+                time.sleep(1)
+            except Exception:
+                pass
+
+        send_btn = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//button[@aria-label='Send']")
+        ))
+        send_btn.click()
+        time.sleep(3)
+        driver.quit()
+        fname = os.path.basename(file_path)
+        return f"Sent {fname} to {contact}"
+    except Exception as e:
+        try: driver.quit()
+        except: pass
+        return f"GAP: media send failed - {e}"
+
+
+def delete_last_message(contact: str) -> str:
+    """Delete the last sent message to a contact."""
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.action_chains import ActionChains
+        import time
+
+        options = Options()
+        options.add_argument("--user-data-dir=" + CHROME_PROFILE)
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
+        driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
+        wait = WebDriverWait(driver, 30)
+        driver.get("https://web.whatsapp.com")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@aria-label='Chat list']")))
+        time.sleep(4)
+
+        search = driver.find_element(By.XPATH, "//*[@aria-label='Search or start a new chat']")
+        search.click()
+        search.send_keys(contact)
+        time.sleep(3)
+        matched_name = contact
+        clicked = False
+        candidates = driver.find_elements(By.XPATH, "//span[@title]")
+        for c in candidates:
+            title = c.get_attribute("title") or ""
+            if contact.lower() in title.lower() and len(title) < 60:
+                matched_name = title
+                try:
+                    c.click()
+                    clicked = True
+                    break
+                except Exception:
+                    try:
+                        driver.execute_script("arguments[0].click();", c)
+                        clicked = True
+                        break
+                    except Exception:
+                        continue
+        if not clicked:
+            driver.quit()
+            return f"GAP: no contact found matching '{contact}'. Check the exact name saved in your phone."
+        time.sleep(3)
+
+        msgs = driver.find_elements(By.XPATH, "//div[contains(@class,'message-out')]")
+        if not msgs:
+            driver.quit()
+            return "GAP: no sent messages found."
+        last = msgs[-1]
+        ActionChains(driver).move_to_element(last).perform()
+        time.sleep(1)
+
+        ActionChains(driver).context_click(last).perform()
+        time.sleep(1)
+
+        del_btn = driver.find_element(By.XPATH, "//*[text()='Delete message' or text()='Delete']")
+        del_btn.click()
+        time.sleep(1)
+
+        confirm = driver.find_element(By.XPATH, "//*[text()='Delete for everyone' or text()='Delete for Everyone']")
+        confirm.click()
+        time.sleep(2)
+        driver.quit()
+        return f"Last message to {contact} deleted."
+    except Exception as e:
+        try: driver.quit()
+        except: pass
+        return f"GAP: delete failed - {e}"
+
+
+def forward_message(from_contact: str, to_contact: str) -> str:
+    """Forward the latest message from one contact to another."""
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.action_chains import ActionChains
+        import time
+
+        options = Options()
+        options.add_argument("--user-data-dir=" + CHROME_PROFILE)
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--headless=new")
+        options.add_argument("--window-size=1920,1080")
+
+        driver = webdriver.Chrome(service=Service(CHROMEDRIVER), options=options)
+        wait = WebDriverWait(driver, 30)
+        driver.get("https://web.whatsapp.com")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//*[@aria-label='Chat list']")))
+        time.sleep(4)
+
+        search = driver.find_element(By.XPATH, "//*[@aria-label='Search or start a new chat']")
+        search.click()
+        search.send_keys(from_contact)
+        time.sleep(2)
+        chats = driver.find_elements(By.XPATH, "//*[@aria-label='Chat list']//*[@tabindex='-1']")
+        if not chats:
+            driver.quit()
+            return f"GAP: contact not found: {from_contact}"
+        chats[0].click()
+        time.sleep(3)
+
+        msgs = driver.find_elements(By.XPATH, "//div[contains(@class,'message-in') or contains(@class,'message-out')]")
+        if not msgs:
+            driver.quit()
+            return "GAP: no messages found."
+        last = msgs[-1]
+        ActionChains(driver).move_to_element(last).perform()
+        time.sleep(1)
+
+        ActionChains(driver).context_click(last).perform()
+        time.sleep(1)
+        fwd_btn = driver.find_element(By.XPATH, "//*[text()='Forward message' or text()='Forward']")
+        fwd_btn.click()
+        time.sleep(2)
+
+        fwd_search = driver.find_element(By.XPATH, "//input[@placeholder='Search...' or @placeholder='Search']")
+        fwd_search.send_keys(to_contact)
+        time.sleep(2)
+        results = driver.find_elements(By.XPATH, "//span[@title]")
+        for r in results:
+            if to_contact.lower() in (r.get_attribute("title") or "").lower():
+                r.click()
+                break
+        time.sleep(1)
+
+        send_btn = driver.find_element(By.XPATH, "//button[@aria-label='Send' or contains(@class,'send')]")
+        send_btn.click()
+        time.sleep(2)
+        driver.quit()
+        return f"Forwarded message from {from_contact} to {to_contact}"
+    except Exception as e:
+        try: driver.quit()
+        except: pass
+        return f"GAP: forward failed - {e}"

@@ -70,6 +70,12 @@ class Memory:
             );
             CREATE VIRTUAL TABLE IF NOT EXISTS conversations_fts
             USING fts5(role, content, content=conversations);
+            CREATE TABLE IF NOT EXISTS pending_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                action_type TEXT,
+                payload TEXT,
+                created_at TEXT
+            );
         """)
         self.conn.commit()
 
@@ -172,6 +178,34 @@ class Memory:
         self.conn.commit()
         self._save_encrypted()
 
+    def set_pending_action(self, action_type, payload):
+        """Store a pending action awaiting yes/no confirmation. Only one
+        pending action at a time -- a new one replaces any old one, since
+        a fresh request supersedes whatever you hadn't confirmed yet."""
+        import json
+        self.conn.execute("DELETE FROM pending_actions")
+        self.conn.execute(
+            "INSERT INTO pending_actions (action_type, payload, created_at) VALUES (?, ?, ?)",
+            (action_type, json.dumps(payload), datetime.now().isoformat())
+        )
+        self.conn.commit()
+        self._save_encrypted()
+
+    def get_pending_action(self):
+        """Return {"action_type": ..., "payload": {...}} or None."""
+        import json
+        row = self.conn.execute(
+            "SELECT action_type, payload FROM pending_actions ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return None
+        return {"action_type": row[0], "payload": json.loads(row[1])}
+
+    def clear_pending_action(self):
+        self.conn.execute("DELETE FROM pending_actions")
+        self.conn.commit()
+        self._save_encrypted()
+
     def save_message(self, role, content):
         self.conn.execute(
             "INSERT INTO conversations (role, content, timestamp) VALUES (?, ?, ?)",
@@ -182,7 +216,7 @@ class Memory:
 
     def get_history(self, limit=20):
         rows = self.conn.execute(
-            "SELECT role, content FROM conversations WHERE active=1 ORDER BY id DESC LIMIT ?",
+            "SELECT role, content FROM conversations ORDER BY id DESC LIMIT ?",
             (limit,)
         ).fetchall()
         return [{"role": r[0], "content": r[1]} for r in reversed(rows)]

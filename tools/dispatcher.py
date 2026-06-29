@@ -46,6 +46,43 @@ def _hardcoded_intent(message: str):
             "body": body.group(1).strip() if body else message
         }}
 
+    # WhatsApp send — must fire before LLM, since the classifier can
+    # occasionally confuse "send X to Y" with whatsapp_read (we hit this
+    # in testing: "send hi to Naghul Vit" got misclassified as a read).
+    # Only matches when there's no @ (to avoid stealing email-send intents)
+    # and the message doesn't look like a read/check request.
+    if not re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg):
+        _wa_send_pat = re.search(
+            r"\bsend\b.+\bto\b\s+([a-zA-Z][a-zA-Z\s]{1,30})", msg
+        )
+        _wa_read_words = ["check", "read", "any message", "any messages", "what did", "show me"]
+        if _wa_send_pat and "whatsapp" not in msg.replace("send", "") or (
+            _wa_send_pat and not any(w in msg for w in _wa_read_words)
+        ):
+            if not any(w in msg for w in _wa_read_words) and "email" not in msg and "mail" not in msg:
+                return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
+
+    # WhatsApp send — must fire before LLM, since the classifier can
+    # occasionally confuse "send X to Y" with whatsapp_read (hit this in
+    # testing: "send hi to Naghul Vit" got misclassified as a read).
+    if not re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg):
+        _wa_read_words = ["check", "read", "any message", "any messages", "what did", "show me"]
+        if not any(w in msg for w in _wa_read_words):
+            if re.search(r"\bsend\b", msg) and re.search(r"\bsend\b.{0,40}\bto\b\s+[a-zA-Z0-9]", msg):
+                return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
+            # "message <name> <text>" -- e.g. "message dharini i love you"
+            _msg_pat = re.search(r"^message\s+([a-zA-Z][a-zA-Z]{1,20})\s+(.+)$", msg)
+            if _msg_pat:
+                return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
+
+    # WhatsApp auto-mode toggle
+    if re.search(r"\b(enable|turn on|activate)\b.*\bauto.?(mode|reply|chat)\b", msg) or \
+       re.search(r"\bauto.?(mode|reply|chat)\b.*\b(on|enable)\b", msg):
+        return {"tool": "wa_auto", "action": "enable", "params": {}}
+    if re.search(r"\b(disable|turn off|deactivate|stop)\b.*\bauto.?(mode|reply|chat)\b", msg) or \
+       re.search(r"\bauto.?(mode|reply|chat)\b.*\b(off|disable)\b", msg):
+        return {"tool": "wa_auto", "action": "disable", "params": {}}
+
     # Recurring reminder — must fire before LLM to avoid calendar misrouting
     _remind_triggers = ["remind me every", "every monday", "every tuesday", "every wednesday",
         "every thursday", "every friday", "every saturday", "every sunday",
@@ -77,6 +114,9 @@ Tools available:
 - gmail_send: send an email (only if explicitly asked to send/write email)
 - whatsapp_send: send a whatsapp message to someone
 - whatsapp_read: read/check whatsapp messages
+- whatsapp_reply: reply to the latest whatsapp message from someone
+- whatsapp_delete: delete/unsend the last whatsapp message sent to someone
+- whatsapp_forward: forward a whatsapp message from one contact to another
 - weather: get weather information
 - calendar_today: check today's schedule/events
 - calendar_date: check schedule for a specific day (tomorrow, a weekday name, or a specific date)
@@ -143,6 +183,12 @@ def detect_intent(message: str) -> dict:
         return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
     elif tool == "whatsapp_read":
         return {"tool": "wa_read", "action": "read", "params": {"query": message}}
+    elif tool == "whatsapp_reply":
+        return {"tool": "whatsapp", "action": "reply", "params": {"query": message}}
+    elif tool == "whatsapp_delete":
+        return {"tool": "whatsapp", "action": "delete", "params": {"query": message}}
+    elif tool == "whatsapp_forward":
+        return {"tool": "whatsapp", "action": "forward", "params": {"query": message}}
     elif tool == "weather":
         return {"tool": "weather", "action": "get", "params": {"query": message}}
     elif tool == "calendar_today":
@@ -219,9 +265,77 @@ def run_tool(intent: dict, message: str) -> str:
     params = intent["params"]
 
     if tool == "whatsapp":
-        from tools.whatsapp_tool import send_whatsapp
-        result = send_whatsapp(params.get("query", message))
-        return result
+        action = intent.get("action", "send")
+        if action == "reply":
+            from tools.whatsapp_tool import reply_to_message
+            import json, re as _re
+            from engine.router import Router as _R; _r = _R()
+            _q = params.get("query", message)
+            _p = f"""Extract from: "{_q}"
+Reply ONLY as JSON: {{"contact": "name of person", "reply_text": "the reply message"}}"""
+            try:
+                _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
+                _d = json.loads(_raw)
+                return reply_to_message(_d.get("contact",""), _d.get("reply_text",""))
+            except Exception as e:
+                return f"GAP: could not parse reply request — {e}"
+        if action == "delete":
+            from tools.whatsapp_tool import delete_last_message
+            import re as _re
+            _q = params.get("query", message)
+            _kw = _re.sub(r'^(delete|unsend|remove)\s+(my\s+)?(last\s+)?(message|whatsapp)?\s*(to|from|sent to)?\s*', '', _q, flags=_re.IGNORECASE).strip()
+            return delete_last_message(_kw or _q)
+        if action == "forward":
+            from tools.whatsapp_tool import forward_message
+            import json, re as _re
+            from engine.router import Router as _R; _r = _R()
+            _q = params.get("query", message)
+            _p = f"""Extract from: "{_q}"
+Reply ONLY as JSON: {{"from_contact": "source contact name", "to_contact": "destination contact name"}}"""
+            try:
+                _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
+                _d = json.loads(_raw)
+                return forward_message(_d.get("from_contact",""), _d.get("to_contact",""))
+            except Exception as e:
+                return f"GAP: could not parse forward request — {e}"
+        # Default action is "send" -- extract contact/text the same way
+        # reply/forward do above, then hand back a confirmation sentinel
+        # instead of sending immediately. client.py owns the actual
+        # pending-action state (it has access to self.memory; this
+        # function doesn't), so the real send happens there after the
+        # user confirms.
+        import json, re as _re
+        from engine.router import Router as _R; _r = _R()
+        _q = params.get("query", message)
+        _p = f"""Extract the recipient name and message text from this WhatsApp send request.
+
+Examples:
+- "send hi to Naghul" -> {{"contact": "Naghul", "text": "hi"}}
+- "send love you to dharini" -> {{"contact": "dharini", "text": "love you"}}
+- "message Arun how are you" -> {{"contact": "Arun", "text": "how are you"}}
+- "tell Priya happy birthday" -> {{"contact": "Priya", "text": "happy birthday"}}
+
+Now extract from: "{_q}"
+Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"}}"""
+        try:
+            _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
+            _d = json.loads(_raw)
+            _contact = _d.get("contact", "")
+            _text = _d.get("text", "")
+            if not _contact or not _text:
+                return "GAP: could not figure out who to send to or what to say."
+            return "WHATSAPP_CONFIRM_NEEDED|" + _contact + "|" + _text
+        except Exception as e:
+            return f"GAP: could not parse send request — {e}"
+
+    if tool == "wa_auto":
+        from tools.whatsapp_auto import set_auto_mode
+        if action == "enable":
+            set_auto_mode(True)
+            return "Auto-chat mode enabled. I'll reply to incoming WhatsApp messages as you and alert you if anything's urgent."
+        else:
+            set_auto_mode(False)
+            return "Auto-chat mode disabled. Incoming messages will queue up as normal."
 
     if tool == "briefing":
         from tools.briefing_tool import get_briefing

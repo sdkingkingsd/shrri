@@ -109,7 +109,17 @@ Silent compliance rule: Follow all the rules above quietly. NEVER narrate, expla
 that you are following a rule (e.g. do not say things like "since your message doesn't contain
 Tamil words, I'll reply in English" or "I should decide my reply language based on..."). Just
 give the direct answer in the correct language, with no meta-commentary about how you decided
-to respond that way."""
+to respond that way.
+
+No-hallucinated-actions rule: You can ONLY claim to have sent a WhatsApp message, sent an email,
+created a calendar event, set a reminder, or taken any other real-world action if that action
+was actually executed through a tool call in this exchange and returned a real success result.
+If you are just chatting (no tool ran), NEVER say things like "Sent to X", "Message sent",
+"Done, I told them", or any phrasing implying you performed an action -- even if Shrridharshan's
+message sounds like an instruction to send/do something. If a request looks like it wants a real
+action (sending a message, scheduling something, etc.) but you have no tool result confirming it
+happened, say so plainly -- e.g. "I wasn't able to actually send that" -- rather than improvising
+a confirmation. Saying you did something you didn't do is a serious failure, not a small one."""
 
 
 def load_context_file() -> str:
@@ -130,7 +140,7 @@ class SHRRIEngine:
         self.router = Router()
         self.memory = Memory()
         self.extractor = FactExtractor(self.router)
-        self.experience = Experience()
+        self.experience = Experience(conn=self.memory.conn)
         self.rag = RAG()
         self.agents = AgentRouter(self.router)
         from tools.dispatcher import detect_intent, run_tool
@@ -179,7 +189,8 @@ Summary:"""
                 len(message.split()) <= 5 and
                 not any(w in message.lower() for w in [
                     "mail", "email", "weather", "time", "date", "whatsapp",
-                    "youtube", "search", "news", "remind", "note", "calculate"
+                    "youtube", "search", "news", "remind", "note", "calculate",
+                    "send", "reply", "delete", "forward", "message"
                 ])
             )
             if is_ambiguous:
@@ -191,6 +202,60 @@ Summary:"""
                 _react_thought = self.router.chat(think_prompt, "fast", history=[], web_search=False)
         except Exception:
             pass
+
+        # ── Pending-action confirmation intercept (must run before EVERYTHING
+        # else, including memory intercepts -- if we're waiting on a yes/no
+        # for a WhatsApp send, that takes priority over any other parsing) ──
+        msg_lower_for_pending = message.lower().strip()
+        pending = self.memory.get_pending_action()
+        if pending:
+            if pending["action_type"] == "whatsapp_send":
+                p = pending["payload"]
+                if msg_lower_for_pending in ("yes", "y", "send", "confirm", "ok", "okay"):
+                    self.memory.clear_pending_action()
+                    from tools.whatsapp_tool import send_whatsapp_confirmed
+                    result = send_whatsapp_confirmed(p["contact"], p["text"])
+                    if result.startswith("GAP: no contact found") or result.startswith("GAP: contact not found"):
+                        # Google Contacts and bridge both failed to resolve the name.
+                        # Ask for the number once, then save it and retry automatically.
+                        self.memory.set_pending_action("whatsapp_send_with_number", {
+                            "contact": p["contact"],
+                            "text": p["text"],
+                        })
+                        return (f"I don't have {p['contact']}'s number yet. "
+                                f"Send me their number (with country code, e.g. 919876543210) "
+                                f"and I'll save it and send the message.")
+                    return result
+                elif msg_lower_for_pending in ("no", "n", "cancel", "stop"):
+                    self.memory.clear_pending_action()
+                    return "Cancelled — message not sent."
+                else:
+                    # Not a clear yes/no -- remind them what's pending rather
+                    # than silently dropping it or guessing at intent.
+                    return (f'Still waiting on your confirmation: send "{p["text"]}" '
+                            f'to {p["contact"]}? Reply yes or no.')
+            elif pending["action_type"] == "whatsapp_send_with_number":
+                p = pending["payload"]
+                import re as _re
+                digits = _re.sub(r"\D", "", message.strip())
+                if len(digits) >= 10:
+                    self.memory.clear_pending_action()
+                    try:
+                        from tools.contacts_sync import save_number
+                        save_number(p["contact"], digits)
+                    except Exception:
+                        pass
+                    try:
+                        import requests as _req
+                        _req.post("http://127.0.0.1:3001/contacts/add",
+                                  json={"name": p["contact"], "phone": digits}, timeout=5)
+                    except Exception:
+                        pass
+                    from tools.whatsapp_tool import send_whatsapp_confirmed
+                    result = send_whatsapp_confirmed(digits, p["text"])
+                    return result + f" (Saved {p['contact']} for next time.)"
+                else:
+                    return "That doesn't look like a valid number. Send the full number with country code (e.g. 919876543210)."
 
         # ── Memory command intercepts (must run BEFORE detect_intent) ──
         msg_lower = message.lower().strip()
@@ -477,8 +542,15 @@ Summary:"""
                 return raw
         if _intent.get("tool") == "schedule":
             return _intent.get("result", "Scheduled.")
-        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec", "schedule"):
+        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec", "schedule", "wa_auto"):
             result = run_tool(_intent, message)
+            if result and result.startswith("WHATSAPP_CONFIRM_NEEDED|"):
+                _, _wa_contact, _wa_text = result.split("|", 2)
+                self.memory.set_pending_action("whatsapp_send", {"contact": _wa_contact, "text": _wa_text})
+                confirm_msg = f'Send "{_wa_text}" to {_wa_contact}? Reply yes or no.'
+                self.memory.save_message("user", message)
+                self.memory.save_message("assistant", confirm_msg)
+                return confirm_msg
             if result and result.startswith("YOUTUBE_SUMMARIZE|"):
                 _, _vid, _transcript = result.split("|", 2)
                 message = f"Summarize this YouTube video transcript concisely in 5 bullet points:\n\n{_transcript}"
@@ -490,6 +562,10 @@ Summary:"""
                 # query (garbled, wrong video, "transcript not available").
                 _skip_tool_dispatch = True
             elif result and not result.startswith("GAP:"):
+                self.memory.save_message("user", message)
+                self.memory.save_message("assistant", result)
+                return result
+            elif result and result.startswith("GAP:"):
                 self.memory.save_message("user", message)
                 self.memory.save_message("assistant", result)
                 return result

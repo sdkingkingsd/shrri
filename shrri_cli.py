@@ -64,8 +64,8 @@ def main():
             print(f'       "{text}"')
             confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
             if confirm in ("yes", "y"):
-                from tools.whatsapp_tool import send_by_name
-                print(send_by_name(name, text))
+                from tools.whatsapp_tool import send_whatsapp_confirmed
+                print(send_whatsapp_confirmed(name, text))
             else:
                 print("SHRRI: Message cancelled.")
         elif response.startswith("WHATSAPP_PENDING|"):
@@ -74,8 +74,8 @@ def main():
             print(f'       "{text}"')
             confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
             if confirm in ("yes", "y"):
-                from tools.whatsapp_tool import send_whatsapp_now
-                print(send_whatsapp_now(phone, text))
+                from tools.whatsapp_tool import send_whatsapp_confirmed
+                print(send_whatsapp_confirmed(phone, text))
             else:
                 print("SHRRI: Message cancelled.")
         else:
@@ -128,8 +128,8 @@ def main():
             print(f'       "{text}"')
             confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
             if confirm in ("yes", "y"):
-                from tools.whatsapp_tool import send_by_name
-                print(send_by_name(name, text))
+                from tools.whatsapp_tool import send_whatsapp_confirmed
+                print(send_whatsapp_confirmed(name, text))
             else:
                 print("SHRRI: Message cancelled.")
         elif response.startswith("WHATSAPP_PENDING|"):
@@ -138,8 +138,8 @@ def main():
             print(f'       "{text}"')
             confirm = input("SHRRI: Send this message? (yes/no): ").strip().lower()
             if confirm in ("yes", "y"):
-                from tools.whatsapp_tool import send_whatsapp_now
-                result = send_whatsapp_now(phone, text)
+                from tools.whatsapp_tool import send_whatsapp_confirmed
+                result = send_whatsapp_confirmed(phone, text)
                 print(f"SHRRI: {result}\n")
             else:
                 print("SHRRI: Message cancelled.\n")

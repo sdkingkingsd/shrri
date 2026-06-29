@@ -5,8 +5,8 @@ from datetime import datetime
 DB_PATH = os.path.expanduser("~/.shrri/memory.db")
 
 class Experience:
-    def __init__(self):
-        self.conn = sqlite3.connect(DB_PATH)
+    def __init__(self, conn=None):
+        self.conn = conn if conn is not None else sqlite3.connect(DB_PATH)
         self._init_table()
 
     def _init_table(self):
