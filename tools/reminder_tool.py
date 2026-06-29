@@ -148,7 +148,7 @@ def _parse_task(text: str) -> str:
 
 def _schedule_recurring(hour: int, minute: int, task: str, freq: str = "daily", weekday: int = None, day: int = None) -> str:
     """Crontab-based reminder with Telegram delivery."""
-    notify_cmd = f'python3 /home/shrridharshan/shrri/tools/telegram_notify.py "⏰ SHRRI Reminder: {task}"'
+    notify_cmd = f'python3 /home/shrridharshan/shrri/tools/telegram_notify.py --reminder "{task}"'
     if freq == "weekly" and weekday is not None:
         cron_expr = f"{minute} {hour} * * {weekday}"
         _cron_day_names = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'}
@@ -170,7 +170,7 @@ def _schedule_recurring(hour: int, minute: int, task: str, freq: str = "daily", 
 def _schedule_oneshot(remind_time: datetime, task: str) -> str:
     """One-shot reminder via at — sends Telegram message."""
     at_time_str = remind_time.strftime("%H:%M %Y-%m-%d")
-    notify_cmd = f'python3 /home/shrridharshan/shrri/tools/telegram_notify.py "⏰ SHRRI Reminder: {task}"'
+    notify_cmd = f'python3 /home/shrridharshan/shrri/tools/telegram_notify.py --reminder "{task}"'
     proc = subprocess.run(
         ['at', at_time_str],
         input=notify_cmd,
