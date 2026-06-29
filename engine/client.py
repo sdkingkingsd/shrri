@@ -391,6 +391,20 @@ Summary:"""
             else:
                 opts = ", ".join(presets.keys())
                 return "Available personalities: " + opts
+        # /dreaming — manually trigger dream cycle
+        if msg_lower.strip() in ("/dreaming", "run dream cycle", "dream now"):
+            try:
+                import sys as _sys4
+                _sys4.path.insert(0, "/home/shrridharshan/shrri")
+                from scripts.dream_cycle import run_dream_cycle
+                run_dream_cycle()
+                dreams_path = "/home/shrridharshan/.shrri/DREAMS.md"
+                with open(dreams_path) as _df:
+                    diary = _df.read()
+                last_entry = diary.split("## Dream Cycle")[-1][:500]
+                return "Dream cycle complete:\n" + last_entry
+            except Exception as e:
+                return "Dream error: " + str(e)
         # ── End memory intercepts ──
 
         _intent = detect_intent(message)
