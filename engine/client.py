@@ -542,7 +542,7 @@ Summary:"""
                 return raw
         if _intent.get("tool") == "schedule":
             return _intent.get("result", "Scheduled.")
-        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec", "schedule", "wa_auto"):
+        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec", "schedule", "wa_auto", "web_extract"):
             result = run_tool(_intent, message)
             if result and result.startswith("WHATSAPP_CONFIRM_NEEDED|"):
                 _, _wa_contact, _wa_text = result.split("|", 2)

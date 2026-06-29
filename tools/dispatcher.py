@@ -53,8 +53,7 @@ def _hardcoded_intent(message: str):
     # and the message doesn't look like a read/check request.
     if not re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg):
         _wa_send_pat = re.search(
-            r"\bsend\b.+\bto\b\s+([a-zA-Z][a-zA-Z\s]{1,30})", msg
-        )
+            r"\bsend\b.+\bto\b\s+([a-zA-Z][a-zA-Z\s]{1,30})", msg)
         _wa_read_words = ["check", "read", "any message", "any messages", "what did", "show me"]
         if _wa_send_pat and "whatsapp" not in msg.replace("send", "") or (
             _wa_send_pat and not any(w in msg for w in _wa_read_words)
@@ -74,6 +73,12 @@ def _hardcoded_intent(message: str):
             _msg_pat = re.search(r"^message\s+([a-zA-Z][a-zA-Z]{1,20})\s+(.+)$", msg)
             if _msg_pat:
                 return {"tool": "whatsapp", "action": "send", "params": {"query": message}}
+
+    # Web extract — read a URL
+    import re as _re
+    _url_match = _re.search(r'https?://\S+', message)
+    if _url_match and any(w in msg for w in ["read","extract","summarise","summarize","open","fetch","get content","what does"]):
+        return {"tool": "web_extract", "action": "extract", "params": {"url": _url_match.group()}}
 
     # WhatsApp auto-mode toggle
     if re.search(r"\b(enable|turn on|activate)\b.*\bauto.?(mode|reply|chat)\b", msg) or \
@@ -337,7 +342,19 @@ Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"
             set_auto_mode(False)
             return "Auto-chat mode disabled. Incoming messages will queue up as normal."
 
-    if tool == "briefing":
+    if tool == "web_extract":
+        url = params.get("url") or params.get("query", "")
+        if not url.startswith("http"):
+            return "GAP: please provide a valid URL to extract."
+        from tools.search import web_extract
+        content = web_extract(url)
+        if content.startswith("Extract failed"):
+            return content
+        # Summarise the extracted content instead of dumping raw text
+        from engine.router import Router as _R
+        _r = _R()
+        summary = _r.chat("Summarise this web page content clearly and concisely: " + content[:2000], task="fast", web_search=False)
+        return summary
         from tools.briefing_tool import get_briefing
         return get_briefing()
 
