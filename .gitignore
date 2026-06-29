@@ -10,3 +10,12 @@ node_modules/
 subprocess
 sys
 time
+wa_bridge/auth/
+wa_bridge/contacts.json
+wa_bridge/recent_messages.json
+wa_bridge/auth.zip.enc
+wa_bridge/contacts.json.enc
+wa_bridge/recent_messages.json.enc
+*.png
+__pycache__/
+*.pyc
