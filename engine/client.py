@@ -237,7 +237,7 @@ Summary:"""
         # Notes search
         search_triggers = ["what did we", "do you remember", "did i mention",
                            "last week", "yesterday i said", "when did i",
-                           "search notes", "what did i", "what have we",
+                           "search notes", "what have we",
                            "what did we discuss", "what did we work", "what did we talk"]
         if any(t in msg_lower for t in search_triggers):
             try:
@@ -303,15 +303,26 @@ Summary:"""
                     query = query.replace(t, "").strip()
                 hits = hybrid_search(query, n=5)
                 if hits:
-                    lines = ["- [" + h["source"] + "] [" + h["timestamp"] + "]: " + h["text"][:150] for h in hits]
-                    return "Memory search results:\n" + "\n".join(lines)
+                    context = "\n".join(["[" + h["timestamp"] + "] " + h["text"][:200] for h in hits])
+                    summary_prompt = (
+                        "Based on these past conversation snippets, answer the question: \"" + query + "\"\n\n"
+                        "Past conversations:\n" + context + "\n\n"
+                        "Give a short direct answer using only what is in the snippets. "
+                        "If not enough info, say so."
+                    )
+                    try:
+                        summary = self.router.chat(summary_prompt, task="fast", web_search=False)
+                        return "From memory:\n" + summary
+                    except Exception:
+                        lines = ["- [" + h["source"] + "] [" + h["timestamp"] + "]: " + h["text"][:150] for h in hits]
+                        return "Memory search results:\n" + "\n".join(lines)
                 return "Nothing found in memory for: " + query
             except Exception as e:
                 pass
 
         # Notes search — before router grabs "do you remember"
         notes_triggers = ["do you remember", "did i mention", "search notes",
-                          "what did i say", "what did we discuss", "what did we talk"]
+                          "what did we discuss", "what did we talk"]
         if any(t in msg_lower for t in notes_triggers):
             try:
                 import sqlite3 as _sq3
@@ -401,6 +412,24 @@ Summary:"""
                 self.memory.save_message("user", message)
                 self.memory.save_message("assistant", result)
                 return result
+
+        if isinstance(_intent, dict) and _intent.get("tool") == "memory_search":
+            try:
+                import sys as _sys3
+                _sys3.path.insert(0, "/home/shrridharshan/shrri")
+                from scripts.semantic_search import hybrid_search
+                _query = _intent.get("params", {}).get("query", message)
+                _hits = hybrid_search(_query, n=5)
+                if _hits:
+                    _ctx = "\n".join(["[" + h["timestamp"] + "] " + h["text"][:200] for h in _hits])
+                    _sp = "Answer this using only these past conversation snippets: \"" + _query + "\"\n\n" + _ctx + "\n\nShort direct answer:"
+                    try:
+                        return "From memory:\n" + self.router.chat(_sp, task="fast", web_search=False)
+                    except Exception:
+                        return "Found in memory:\n" + "\n".join(["- " + h["text"][:150] for h in _hits])
+                return "Nothing found in memory about that."
+            except Exception as e:
+                pass
 
         if isinstance(_intent, dict) and _intent.get("tool") == "convsearch":
             return _intent.get("result", "No conversations found.")

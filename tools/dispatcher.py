@@ -78,6 +78,7 @@ Tools available:
 - system: system controls like shutdown, lock screen
 - schedule_add: schedule an automated recurring task
 - convsearch: search past conversations with SHRRI (user asking about previous chats, what was said before, past discussions)
+- memory_search: search SHRRI's semantic memory for facts, topics, or things said (e.g. "do you remember when", "what did i say about", "find in memory", "search memory for")
 - chat: general conversation, questions, explanations, help — anything else
 
 Message: "{message}"
@@ -150,6 +151,8 @@ def detect_intent(message: str) -> dict:
         from tools.scheduler import add_schedule
         result = add_schedule(message)
         return {"tool": "schedule", "action": "add", "params": {}, "result": result}
+    elif tool == "memory_search":
+        return {"tool": "memory_search", "action": "search", "params": {"query": message}}
     elif tool == "convsearch":
         from tools.conversation_log import search_conversations, get_recent
         if any(w in msg for w in ["yesterday", "today", "recent", "last"]):
