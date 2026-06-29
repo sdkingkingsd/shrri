@@ -182,7 +182,7 @@ class Memory:
 
     def get_history(self, limit=20):
         rows = self.conn.execute(
-            "SELECT role, content FROM conversations ORDER BY id DESC LIMIT ?",
+            "SELECT role, content FROM conversations WHERE active=1 ORDER BY id DESC LIMIT ?",
             (limit,)
         ).fetchall()
         return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
@@ -196,14 +196,103 @@ class Memory:
 
 
     def compress(self, summary: str):
-        """Replace all history with a single summary message."""
-        self.conn.execute("DELETE FROM conversations")
+        """
+        Safe compression with checkpoint + rollback (inspired by Hermes checkpoints v2)
+        Instead of DELETE, marks old rows as active=0 (archived, still searchable)
+        Flushes important facts before compacting (OpenClaw safe handoff)
+        """
+        # Step 1 — Add active column if not exists (migration)
+        try:
+            self.conn.execute("ALTER TABLE conversations ADD COLUMN active INTEGER DEFAULT 1")
+            self.conn.commit()
+        except Exception:
+            pass  # column already exists
+
+        # Step 2 — Checkpoint: save current state to conversations.db before any change
+        try:
+            import shutil, os
+            db_backup = os.path.expanduser("~/.shrri/conversations_checkpoint.db")
+            import sqlite3 as _sq
+            src = _sq.connect(DB_PATH)
+            dst = _sq.connect(db_backup)
+            src.backup(dst)
+            dst.close()
+            src.close()
+            print("[memory] Checkpoint saved")
+        except Exception as e:
+            print(f"[memory] Checkpoint failed: {e}")
+
+        # Step 3 — Flush important facts before compacting (safe handoff)
+        try:
+            rows = self.conn.execute(
+                "SELECT role, content FROM conversations WHERE active=1 ORDER BY timestamp DESC LIMIT 20"
+            ).fetchall()
+            user_msgs = " ".join([r[1] for r in rows if r[0] == "user"])[:1000]
+            # Extract facts from recent context
+            from engine.extractor import FactExtractor
+            from engine.router import Router
+            _router = Router()
+            _extractor = FactExtractor(_router)
+            facts = _extractor.extract(user_msgs)
+            for f in facts:
+                k = f.get("key"); v = f.get("value")
+                if k and v:
+                    self.save_fact(k, v)
+            print(f"[memory] Flushed {len(facts)} facts before compression")
+        except Exception as e:
+            print(f"[memory] Fact flush failed: {e}")
+
+        # Step 4 — Archive old rows (mark active=0) instead of DELETE
+        try:
+            self.conn.execute("UPDATE conversations SET active=0 WHERE active=1")
+            self.conn.commit()
+        except Exception:
+            # Fallback: old schema without active column
+            self.conn.execute("DELETE FROM conversations")
+            self.conn.commit()
+
+        # Step 5 — Insert summary as new active message
         self.conn.execute(
-            "INSERT INTO conversations (role, content, timestamp) VALUES (?, ?, datetime('now'))",
+            "INSERT INTO conversations (role, content, timestamp, active) VALUES (?, ?, datetime('now'), 1)",
             ("system", f"[Conversation summary]: {summary}")
         )
         self.conn.commit()
         self._save_encrypted()
+        print("[memory] Compression complete — old messages archived, not deleted")
+
+    def rollback_compression(self):
+        """Restore from checkpoint if compression went wrong"""
+        try:
+            import os, sqlite3 as _sq
+            db_backup = os.path.expanduser("~/.shrri/conversations_checkpoint.db")
+            if not os.path.exists(db_backup):
+                return False, "No checkpoint found"
+            # Restore archived rows into current connection
+            src = _sq.connect(db_backup)
+            src.backup(self.conn)
+            src.close()
+            self.conn.commit()
+            self._save_encrypted()
+            # Reconnect — re-decrypt from the freshly saved encrypted DB
+            self.conn.close()
+            self.tmp_db = None
+            self.conn = self._open_db()
+            self._init_tables()
+            print("[memory] Rollback successful")
+            return True, "Rollback successful"
+        except Exception as e:
+            return False, str(e)
+
+    def get_archived_messages(self, limit=50):
+        """Get archived (pre-compression) messages — still searchable"""
+        try:
+            rows = self.conn.execute(
+                "SELECT role, content, timestamp FROM conversations WHERE active=0 ORDER BY timestamp DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+            return rows
+        except Exception:
+            return []
     def clear_history(self):
         self.conn.execute("DELETE FROM conversations")
         self.conn.commit()
