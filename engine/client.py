@@ -342,6 +342,25 @@ Summary:"""
                 return f"No DAG summary found for {target}"
             except Exception as e:
                 return f"DAG expand error: {e}"
+        # /personality command — switch modes from Telegram
+        if msg_lower.startswith("/personality ") or msg_lower.startswith("set personality "):
+            preset = msg_lower.split(" ", 1)[1].strip()
+            presets = {
+                "chill": "casual, friendly, uses da, short replies, Tamil/Tanglish ok",
+                "professional": "formal, structured, sir/ma'am, detailed replies",
+                "study": "tutor mode, explains step by step, uses examples",
+                "focus": "ultra short replies, no small talk, task only",
+                "default": "balanced, smart friend mode"
+            }
+            if preset in presets:
+                import json as _pjson, os as _pos
+                _prefs_path = _pos.path.expanduser("~/.shrri/personality.json")
+                with open(_prefs_path, "w") as _pf:
+                    _pjson.dump({"personality": preset}, _pf)
+                return "Personality set to: " + preset + "\n" + presets[preset]
+            else:
+                opts = ", ".join(presets.keys())
+                return "Available personalities: " + opts
         # ── End memory intercepts ──
 
         _intent = detect_intent(message)
@@ -528,6 +547,43 @@ Summary:"""
                         daily_context.append("[" + label + "s Notes - " + day + "]\n" + content[:800])
             if daily_context:
                 system += "\n\n" + "\n\n".join(daily_context)
+        except Exception:
+            pass
+        # Load saved personality preset
+        try:
+            import json as _json2
+            prefs_path = os.path.expanduser("~/.shrri/personality.json")
+            if os.path.exists(prefs_path):
+                _prefs = _json2.load(open(prefs_path))
+                _saved_personality = _prefs.get("personality", "default")
+                personality_prompts = {
+                    "chill": "Be casual, friendly, use da, keep replies short, Tamil/Tanglish ok.",
+                    "professional": "Be formal and structured. Use sir. Give detailed replies.",
+                    "study": "You are a tutor. Explain step by step with examples.",
+                    "focus": "Ultra short replies only. No small talk. Tasks only.",
+                }
+                if _saved_personality in personality_prompts:
+                    system += "\n\n[Active Personality: " + _saved_personality + "]\n" + personality_prompts[_saved_personality]
+        except Exception:
+            pass
+        # Load IDENTITY.md — agent self-identity
+        try:
+            identity_path = os.path.expanduser("~/.shrri/IDENTITY.md")
+            if os.path.exists(identity_path):
+                with open(identity_path) as _if:
+                    _identity = _if.read().strip()
+                    if _identity:
+                        system += "\n\n[Agent Identity]\n" + _identity
+        except Exception:
+            pass
+        # Load USER.md — habits, patterns, goals
+        try:
+            user_path = os.path.expanduser("~/.shrri/USER.md")
+            if os.path.exists(user_path):
+                with open(user_path) as _uf:
+                    _user = _uf.read().strip()
+                    if _user:
+                        system += "\n\n[User Habits and Patterns]\n" + _user
         except Exception:
             pass
         # Load SOUL.md — always-on user profile
