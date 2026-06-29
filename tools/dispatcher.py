@@ -363,6 +363,10 @@ Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"
         _r = _R()
         summary = _r.chat("Summarise this web page content clearly and concisely: " + content[:2000], task="fast", web_search=False)
         return summary
+    if tool == "browse_agent":
+        from tools.browser_agent import browse_agent
+        return browse_agent(message)
+
     if tool == "browser":
         from tools.browser import browser_action
         action = intent.get("action", params.get("action", "open"))
