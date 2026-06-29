@@ -391,6 +391,16 @@ Summary:"""
             else:
                 opts = ", ".join(presets.keys())
                 return "Available personalities: " + opts
+        # /curator — manually trigger curator
+        if msg_lower.strip() in ("/curator", "run curator", "curate memory"):
+            try:
+                import sys as _sys5
+                _sys5.path.insert(0, "/home/shrridharshan/shrri")
+                from scripts.curator import run_curator
+                run_curator()
+                return "Curator done. Check /dreaming for the report."
+            except Exception as e:
+                return "Curator error: " + str(e)
         # /dreaming — manually trigger dream cycle
         if msg_lower.strip() in ("/dreaming", "run dream cycle", "dream now"):
             try:
