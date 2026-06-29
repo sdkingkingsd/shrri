@@ -80,6 +80,14 @@ def _hardcoded_intent(message: str):
     if _url_match and any(w in msg for w in ["read","extract","summarise","summarize","open","fetch","get content","what does"]):
         return {"tool": "web_extract", "action": "extract", "params": {"url": _url_match.group()}}
 
+    # browser — screenshot / click
+    _url2 = re.search(r"https?://\S+", msg)
+    if _url2 and any(w in msg for w in ["screenshot", "click", "type into", "fill in"]):
+        if "screenshot" in msg:
+            return {"tool": "browser", "action": "screenshot", "params": {"url": _url2.group()}}
+        if "click" in msg:
+            return {"tool": "browser", "action": "click", "params": {"url": _url2.group(), "selector": "button"}}
+
     # WhatsApp auto-mode toggle
     if re.search(r"\b(enable|turn on|activate)\b.*\bauto.?(mode|reply|chat)\b", msg) or \
        re.search(r"\bauto.?(mode|reply|chat)\b.*\b(on|enable)\b", msg):
@@ -355,6 +363,18 @@ Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"
         _r = _R()
         summary = _r.chat("Summarise this web page content clearly and concisely: " + content[:2000], task="fast", web_search=False)
         return summary
+    if tool == "browser":
+        from tools.browser import browser_action
+        action = intent.get("action", params.get("action", "open"))
+        url = params.get("url", "")
+        if not url:
+            return "GAP: no URL for browser action."
+        selector = params.get("selector", "")
+        text = params.get("text", "")
+        submit = params.get("submit", False)
+        path = params.get("path", "/tmp/shrri_ss.png")
+        return browser_action(action, url=url, selector=selector, text=text, submit=submit, path=path)
+    if tool == "briefing":
         from tools.briefing_tool import get_briefing
         return get_briefing()
 

@@ -110,7 +110,15 @@ def _generate_reply(name, text, history):
         conv = "\n".join(f"{h['role']}: {h['content']}" for h in history[-10:])
         prompt = (
             f"You are Shrridharshan chatting on WhatsApp. Reply naturally and briefly "
-            f"to {name} as yourself. Do NOT reveal you are an AI. Keep it casual. "
+            f"to {name} as yourself. Do NOT reveal you are an AI. "
+            f"IMPORTANT: Mirror the exact style, tone and language of the person you are replying to. "
+            f"If they use Tanglish (Tamil+English mix), reply in Tanglish. "
+            f"If they use short casual messages, keep your reply short and casual. "
+            f"If they use emojis, use similar emojis. "
+            f"If they write formally, reply formally. "
+            f"If they write in pure Tamil, reply in Tanglish. "
+            f"If they write in pure English, reply in casual English. "
+            f"Basically talk exactly how that person talks - match their energy. "
             f"Output ONLY the reply text, no labels or reasoning.\n\n"
             f"Conversation:\n{conv}\n\n{name}: {text}\nShrridharshan:"
         )

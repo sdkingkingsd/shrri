@@ -22,8 +22,23 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text("⏳ thinking...")
-    response = engine.chat(user_msg)
-    await update.message.reply_text(response[:4000])
+    # Browser commands — bypass LLM, run sync playwright in thread
+    from tools.dispatcher import detect_intent, run_tool
+    import asyncio
+    _intent = detect_intent(user_msg)
+    if _intent["tool"] == "browser":
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, lambda: run_tool(_intent, user_msg))
+    else:
+        response = engine.chat(user_msg)
+    if response.startswith("Screenshot saved to "):
+        img_path = response.split("Screenshot saved to ")[-1].strip()
+        try:
+            await update.message.reply_photo(photo=open(img_path, "rb"))
+        except Exception as e:
+            await update.message.reply_text(f"Screenshot taken but couldn't send image: {e}")
+    else:
+        await update.message.reply_text(response[:4000])
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 async def handle_snooze(update, ctx):

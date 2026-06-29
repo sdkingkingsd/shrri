@@ -160,7 +160,7 @@ class Router:
         if context:
             # Math/time results are authoritative — the LLM must NOT re-derive them.
             # Gmail/search results are reference context — the LLM should summarize them.
-            is_authoritative = context.startswith("🧮") or context.startswith("Current time:")
+            is_authoritative = context.startswith("🧮") or context.startswith("Current time:") or context.startswith("Screenshot saved") or context.startswith("Browser error") or context.startswith("✅")
             if is_authoritative:
                 label = "[Authoritative answer from deterministic tool — state this result directly, do NOT recalculate or re-derive]"
             else:
