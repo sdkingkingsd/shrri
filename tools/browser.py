@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright
 import concurrent.futures
+from playwright_stealth import Stealth
 import re
 
 _TIMEOUT = 15000
@@ -16,6 +17,7 @@ def browser_action(action: str, **params) -> str:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
+            Stealth().apply_stealth_sync(page)
             page.goto(url, timeout=_TIMEOUT, wait_until="domcontentloaded")
 
             if action == "open":
@@ -60,6 +62,26 @@ def browser_action(action: str, **params) -> str:
                 page.screenshot(path=path, full_page=False)
                 browser.close()
                 return f"Screenshot saved to {path}"
+
+            elif action == "mouse_click":
+                x = params.get("x", 0)
+                y = params.get("y", 0)
+                page.mouse.click(x, y)
+                page.wait_for_load_state("domcontentloaded")
+                text = page.inner_text("body")
+                browser.close()
+                return _clean(text)
+
+            elif action == "mouse_screenshot_click":
+                # Take screenshot, click at x,y, return new screenshot
+                x = params.get("x", 0)
+                y = params.get("y", 0)
+                page.mouse.click(x, y)
+                page.wait_for_load_state("domcontentloaded")
+                path2 = params.get("path", "/tmp/shrri_ss.png")
+                page.screenshot(path=path2, full_page=False)
+                browser.close()
+                return f"Screenshot saved to {path2}"
 
             else:
                 browser.close()
