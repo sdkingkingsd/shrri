@@ -25,6 +25,16 @@ def _hardcoded_intent(message: str):
     if "youtube.com" in msg or "youtu.be" in msg:
         return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
 
+    # Draft detection — must come before send check
+    if re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg) and any(t in msg for t in ["draft", "save draft", "save a draft"]):
+        to = re.search(r"to ([^\s]+@[^\s]+)", message, re.IGNORECASE)
+        subject = re.search(r"subject (.+?) body", message, re.IGNORECASE)
+        body = re.search(r"body (.+)$", message, re.IGNORECASE | re.DOTALL)
+        return {"tool": "gmail", "action": "draft", "params": {
+            "to": to.group(1) if to else "",
+            "subject": subject.group(1).strip() if subject else "Draft",
+            "body": body.group(1).strip() if body else message
+        }}
     # Email address present = likely gmail send
     if re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg) and any(t in msg for t in ["send", "mail", "email", "write", "compose"]):
         to = re.search(r"to ([^\s]+@[^\s]+)", message, re.IGNORECASE)
@@ -66,6 +76,10 @@ Tools available:
 - calendar_date: check schedule for a specific day (tomorrow, a weekday name, or a specific date)
 - calendar_upcoming: check upcoming/this week's events
 - calendar_create: create/add a new event or meeting
+- calendar_delete: delete/cancel/remove an event
+- calendar_update: update/edit/change/reschedule an event
+- calendar_search: search/find events by keyword
+- calendar_recurring: create a recurring/repeating event (daily/weekly/monthly)
 - reminder_set: set a reminder or alert
 - reminder_list: show existing reminders
 - reminder_delete: delete all reminders or clear all reminders
@@ -77,6 +91,12 @@ Tools available:
 - files: find/search/open files on computer
 - system: system controls like shutdown, lock screen
 - schedule_add: schedule an automated recurring task
+- gmail_reply: reply to an email (e.g. "reply to that email", "reply to John")
+- gmail_archive: archive or dismiss an email
+- gmail_delete: delete or trash an email
+- gmail_mark_read: mark email as read
+- gmail_draft: save a draft email
+- gmail_attachment: download attachments from an email
 - convsearch: search past conversations with SHRRI (user asking about previous chats, what was said before, past discussions)
 - memory_search: search SHRRI's semantic memory for facts, topics, or things said (e.g. "do you remember when", "what did i say about", "find in memory", "search memory for")
 - chat: general conversation, questions, explanations, help — anything else
@@ -126,6 +146,14 @@ def detect_intent(message: str) -> dict:
         return {"tool": "calendar", "action": "upcoming", "params": {"days": 7}}
     elif tool == "calendar_create":
         return {"tool": "calendar", "action": "create", "params": {"query": message}}
+    elif tool == "calendar_delete":
+        return {"tool": "calendar", "action": "delete", "params": {"query": message}}
+    elif tool == "calendar_update":
+        return {"tool": "calendar", "action": "update", "params": {"query": message}}
+    elif tool == "calendar_search":
+        return {"tool": "calendar", "action": "search", "params": {"query": message}}
+    elif tool == "calendar_recurring":
+        return {"tool": "calendar", "action": "recurring", "params": {"query": message}}
     elif tool == "reminder_set":
         return {"tool": "reminder", "action": "set", "params": {"query": message}}
     elif tool == "reminder_list":
@@ -151,6 +179,18 @@ def detect_intent(message: str) -> dict:
         from tools.scheduler import add_schedule
         result = add_schedule(message)
         return {"tool": "schedule", "action": "add", "params": {}, "result": result}
+    elif tool == "gmail_reply":
+        return {"tool": "gmail", "action": "reply", "params": {"query": message}}
+    elif tool == "gmail_archive":
+        return {"tool": "gmail", "action": "archive", "params": {"query": message}}
+    elif tool == "gmail_delete":
+        return {"tool": "gmail", "action": "delete", "params": {"query": message}}
+    elif tool == "gmail_mark_read":
+        return {"tool": "gmail", "action": "mark_read", "params": {"query": message}}
+    elif tool == "gmail_draft":
+        return {"tool": "gmail", "action": "draft", "params": {"query": message}}
+    elif tool == "gmail_attachment":
+        return {"tool": "gmail", "action": "attachment", "params": {"query": message}}
     elif tool == "memory_search":
         return {"tool": "memory_search", "action": "search", "params": {"query": message}}
     elif tool == "convsearch":
@@ -236,8 +276,98 @@ def run_tool(intent: dict, message: str) -> str:
             _, target = results[-1]
             return get_events_for_date(target.date())
         if action == "create":
-            from tools.calendar_tool import create_event
-            return create_event(params.get("query", message))
+            from tools.calendar_tool import create_event_full
+            import json, re as _re
+            from engine.router import Router as _R; _r = _R()
+            _q = params.get("query", message)
+            _p = f"""Extract event details from: "{_q}"
+Reply ONLY as JSON: {{"title": "", "date": "", "time": "", "duration_hours": 1.0, "location": "", "description": ""}}
+Examples:
+- "create event team meeting tomorrow at 2pm" -> {{"title":"team meeting","date":"tomorrow","time":"2pm","duration_hours":1.0,"location":"","description":""}}
+- "add dentist appointment friday 10am at Apollo for 2 hours" -> {{"title":"dentist appointment","date":"friday","time":"10am","duration_hours":2.0,"location":"Apollo","description":""}}
+- "schedule project review today 3pm" -> {{"title":"project review","date":"today","time":"3pm","duration_hours":1.0,"location":"","description":""}}
+IMPORTANT: title should be the event name only, NOT including words like create/add/schedule/event.
+Leave fields empty if not mentioned. duration_hours default 1.0."""
+            try:
+                _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
+                _d = json.loads(_raw)
+                return create_event_full(
+                    title=_d.get("title","New Event"),
+                    date_str=_d.get("date","today"),
+                    time_str=_d.get("time","9am"),
+                    duration_hours=float(_d.get("duration_hours",1.0)),
+                    location=_d.get("location",""),
+                    description=_d.get("description","")
+                )
+            except Exception as e:
+                from tools.calendar_tool import create_event
+                return create_event(_q)
+        if action == "delete":
+            from tools.calendar_tool import delete_event
+            import re as _re
+            _q = params.get("query", message)
+            # Extract keyword — strip command words
+            _kw = _re.sub(r'^(delete|cancel|remove)\s+(event|meeting|appointment)?\s*', '', _q, flags=_re.IGNORECASE).strip()
+            return delete_event(_kw or _q)
+        if action == "update":
+            from tools.calendar_tool import update_event
+            import json, re as _re
+            from engine.router import Router as _R; _r = _R()
+            _q = params.get("query", message)
+            # Pre-strip command words before LLM
+            import re as _re2
+            _q_clean = _re2.sub(r'^(update|edit|change|reschedule|rename)\s+(event|meeting|appointment)?\s*', '', _q, flags=_re2.IGNORECASE).strip()
+            _p = f"""Extract from: "{_q_clean}"
+Reply ONLY as JSON: {{"query": "short keyword to find event (1-3 words, event name only)", "new_title": "", "new_time": "", "new_location": "", "new_description": ""}}
+Examples:
+- "update team meeting to 4pm" -> {{"query":"team meeting","new_title":"","new_time":"4pm","new_location":"","new_description":""}}
+- "reschedule dentist to tomorrow 11am" -> {{"query":"dentist","new_title":"","new_time":"11am","new_location":"","new_description":""}}
+- "rename project review to sprint review" -> {{"query":"project review","new_title":"sprint review","new_time":"","new_location":"","new_description":""}}
+Leave fields empty if not mentioned."""
+            try:
+                _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
+                _d = json.loads(_raw)
+                return update_event(
+                    _d.get("query", _q_clean),
+                    new_title=_d.get("new_title",""),
+                    new_time=_d.get("new_time",""),
+                    new_location=_d.get("new_location",""),
+                    new_description=_d.get("new_description","")
+                )
+            except Exception as e:
+                return f"Update parse error: {e}"
+        if action == "search":
+            from tools.calendar_tool import search_events
+            import re as _re
+            _q = params.get("query", message)
+            _kw = _re.sub(r'^(search|find|look up|show)\s+(my\s+)?(calendar\s+)?(for\s+)?', '', _q, flags=_re.IGNORECASE).strip()
+            return search_events(_kw or _q)
+        if action == "recurring":
+            from tools.calendar_tool import create_recurring_event
+            import json, re as _re
+            from engine.router import Router as _R; _r = _R()
+            _q = params.get("query", message)
+            _p = f"""Extract recurring event details from: "{_q}"
+Reply ONLY as JSON: {{"title":"","date":"","time":"","recurrence":"weekly","count":4,"location":"","description":""}}
+recurrence must be: daily, weekly, or monthly. count = number of occurrences.
+Examples:
+- "create weekly standup every monday 9am for 8 weeks" -> {{"title":"standup","date":"monday","time":"9am","recurrence":"weekly","count":8,"location":"","description":""}}
+- "add daily workout at 6am for 30 days" -> {{"title":"workout","date":"today","time":"6am","recurrence":"daily","count":30,"location":"","description":""}}"""
+            try:
+                import re as _re2
+                _raw = _re2.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
+                _d = json.loads(_raw)
+                return create_recurring_event(
+                    title=_d.get("title","Event"),
+                    date_str=_d.get("date","today"),
+                    time_str=_d.get("time","9am"),
+                    recurrence=_d.get("recurrence","weekly"),
+                    count=int(_d.get("count",4)),
+                    location=_d.get("location",""),
+                    description=_d.get("description","")
+                )
+            except Exception as e:
+                return f"Recurring event error: {e}"
         return get_upcoming_events(params.get("days", 7))
 
     if tool == "weather":
@@ -296,7 +426,7 @@ def run_tool(intent: dict, message: str) -> str:
             from tools.gmail import list_recent_subjects, read_email_body_by_id
 
             user_query = params.get("query", "")
-            subjects = list_recent_subjects(max_results=10, query="")
+            subjects = list_recent_subjects(max_results=20, query="in:all")
 
             if not subjects:
                 return "GAP: no recent emails found to match against for read_body"
@@ -359,6 +489,61 @@ def run_tool(intent: dict, message: str) -> str:
                 return "❌ No recipient found. Please include an email address."
             return send_email(to=to, subject=subject, body=body)
 
+        elif action == "reply":
+            from tools.gmail import reply_email, list_recent_subjects
+            user_query = params.get("query", "")
+            subjects = list_recent_subjects(max_results=10)
+            if not subjects:
+                return "No recent emails to reply to."
+            reply_body = user_query
+            for kw in ["reply to", "respond to", "tell them", "say that"]:
+                if kw in user_query.lower():
+                    reply_body = user_query.lower().split(kw, 1)[-1].strip()
+                    break
+            listing = "\n".join(f"{i}. {s['sender']} | {s['subject']}" for i, s in enumerate(subjects))
+            try:
+                from engine.router import Router as _R; _r = _R()
+                _p = f"Which email to reply to? Message: \"{user_query}\"\n{listing}\nReply ONLY with index number or -1."
+                _d = "".join(ch for ch in _r.chat(_p, task="fast", web_search=False).strip() if ch.isdigit() or ch=="-")
+                idx = int(_d) if _d else 0
+            except Exception: idx = 0
+            if idx < 0 or idx >= len(subjects): return "Could not find which email to reply to."
+            return reply_email(subjects[idx]["id"], reply_body)
+        elif action == "archive":
+            from tools.gmail import archive_email, list_recent_subjects
+            subjects = list_recent_subjects(max_results=5)
+            if not subjects: return "No recent emails found."
+            return archive_email(subjects[0]["id"])
+        elif action == "delete":
+            from tools.gmail import delete_email, list_recent_subjects
+            subjects = list_recent_subjects(max_results=5)
+            if not subjects: return "No recent emails found."
+            return delete_email(subjects[0]["id"])
+        elif action == "mark_read":
+            from tools.gmail import mark_as_read, list_recent_subjects
+            subjects = list_recent_subjects(max_results=5)
+            if not subjects: return "No recent emails found."
+            return mark_as_read(subjects[0]["id"])
+        elif action == "draft":
+            from tools.gmail import save_draft
+            _to = params.get("to", "")
+            _subj = params.get("subject", "Draft")
+            _body = params.get("body", "")
+            if _to and _body:
+                return save_draft(_to, _subj, _body)
+            import json, re
+            from engine.router import Router as _R2; _r2 = _R2()
+            _q = params.get("query", "")
+            try:
+                _raw = re.sub(r"```json|```", "", _r2.chat(f"Extract to,subject,body from: \"{_q}\". JSON only: {{\"to\":\"\",\"subject\":\"\",\"body\":\"\"}}", task="fast", web_search=False)).strip()
+                _d2 = json.loads(_raw)
+                return save_draft(_d2.get("to",""), _d2.get("subject","Draft"), _d2.get("body",""))
+            except Exception as e: return f"Draft error: {e}"
+        elif action == "attachment":
+            from tools.gmail import download_attachments, list_recent_subjects
+            subjects = list_recent_subjects(max_results=5)
+            if not subjects: return "No recent emails found."
+            return download_attachments(subjects[0]["id"])
         elif action == "search":
             return search_emails(query=params.get("query", ""), max_results=5)
 

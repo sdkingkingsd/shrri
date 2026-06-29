@@ -276,3 +276,102 @@ def read_latest_body(n=1):
         return "\n\n---\n\n".join(output)
     except Exception as e:
         return f"Error reading email body: {e}"
+
+def reply_email(message_id: str, reply_body: str) -> str:
+    try:
+        import base64
+        from email.mime.text import MIMEText
+        service = get_gmail_service()
+        # Get original message for threading
+        orig = service.users().messages().get(userId="me", id=message_id, format="metadata",
+               metadataHeaders=["Subject","From","Message-ID"]).execute()
+        headers = orig.get("payload", {}).get("headers", [])
+        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "Re:")
+        sender = next((h["value"] for h in headers if h["name"] == "From"), "")
+        msg_id = next((h["value"] for h in headers if h["name"] == "Message-ID"), "")
+        if not subject.startswith("Re:"):
+            subject = "Re: " + subject
+        msg = MIMEText(reply_body)
+        msg["To"] = sender
+        msg["Subject"] = subject
+        msg["In-Reply-To"] = msg_id
+        msg["References"] = msg_id
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        thread_id = orig.get("threadId", "")
+        service.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
+        return f"✅ Reply sent to {sender}"
+    except Exception as e:
+        return f"Reply error: {e}"
+
+def mark_as_read(message_id: str) -> str:
+    try:
+        service = get_gmail_service()
+        service.users().messages().modify(userId="me", id=message_id,
+            body={"removeLabelIds": ["UNREAD"]}).execute()
+        return "✅ Marked as read"
+    except Exception as e:
+        return f"Error: {e}"
+
+def archive_email(message_id: str) -> str:
+    try:
+        service = get_gmail_service()
+        service.users().messages().modify(userId="me", id=message_id,
+            body={"removeLabelIds": ["INBOX"]}).execute()
+        return "✅ Archived"
+    except Exception as e:
+        return f"Error: {e}"
+
+def delete_email(message_id: str) -> str:
+    try:
+        service = get_gmail_service()
+        service.users().messages().trash(userId="me", id=message_id).execute()
+        return "✅ Moved to trash"
+    except Exception as e:
+        return f"Error: {e}"
+
+def save_draft(to: str, subject: str, body: str) -> str:
+    try:
+        import base64
+        from email.mime.text import MIMEText
+        service = get_gmail_service()
+        msg = MIMEText(body)
+        msg["To"] = to
+        msg["Subject"] = subject
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        service.users().drafts().create(userId="me", body={"message": {"raw": raw}}).execute()
+        return f"✅ Draft saved — To: {to}, Subject: {subject}"
+    except Exception as e:
+        return f"Draft error: {e}"
+
+def download_attachments(message_id: str, save_dir="~/Downloads") -> str:
+    try:
+        import base64
+        service = get_gmail_service()
+        save_dir = os.path.expanduser(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+        msg = service.users().messages().get(userId="me", id=message_id, format="full").execute()
+        parts = msg.get("payload", {}).get("parts", [])
+        saved = []
+        for part in parts:
+            filename = part.get("filename", "")
+            if not filename:
+                continue
+            body = part.get("body", {})
+            att_id = body.get("attachmentId")
+            if att_id:
+                att = service.users().messages().attachments().get(
+                    userId="me", messageId=message_id, id=att_id).execute()
+                data = base64.urlsafe_b64decode(att["data"])
+            elif body.get("data"):
+                data = base64.urlsafe_b64decode(body["data"])
+            else:
+                continue
+            path = os.path.join(save_dir, filename)
+            with open(path, "wb") as f:
+                f.write(data)
+            saved.append(filename)
+        if saved:
+            return "✅ Downloaded: " + ", ".join(saved) + f"\nSaved to: {save_dir}"
+        return "No attachments found."
+    except Exception as e:
+        return f"Attachment error: {e}"

@@ -437,6 +437,16 @@ Summary:"""
                 self.memory.save_message("assistant", result)
                 return result
 
+        # Gmail — new actions
+        if isinstance(_intent, dict) and _intent.get("tool") == "gmail":
+            action = _intent.get("action", "")
+            if action in ("reply", "archive", "delete", "mark_read", "draft", "attachment", "search", "read_body", "send"):
+                from tools.dispatcher import run_tool
+                result = run_tool(_intent, message)
+                self.memory.save_message("user", message)
+                self.memory.save_message("assistant", result)
+                return result
+
         if isinstance(_intent, dict) and _intent.get("tool") == "memory_search":
             try:
                 import sys as _sys3
