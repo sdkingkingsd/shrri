@@ -7,7 +7,7 @@ import dateparser
 
 IST = pytz.timezone("Asia/Kolkata")
 
-RECURRING_KEYWORDS = ["every day", "everyday", "daily", "every morning", "every night"]
+RECURRING_KEYWORDS = ["every day", "everyday", "daily", "every morning", "every night", "every week", "weekly", "every month", "monthly", "every monday", "every tuesday", "every wednesday", "every thursday", "every friday", "every saturday", "every sunday"]
 
 
 def _is_recurring(text: str) -> bool:
@@ -75,6 +75,26 @@ def _parse_datetime(text: str):
     return parsed
 
 
+def _parse_weekday(text: str):
+    """Return weekday index (0=Mon..6=Sun) if found."""
+    # cron weekday: 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat
+    days = {"monday":1,"tuesday":2,"wednesday":3,"thursday":4,"friday":5,"saturday":6,"sunday":0}
+    text = text.lower()
+    for d, idx in days.items():
+        if d in text:
+            return idx
+    return None
+
+def _parse_monthly_day(text: str):
+    """Return day of month if found."""
+    m = re.search(r"every\s+(\d{1,2})(?:st|nd|rd|th)?\s+of", text.lower())
+    if m:
+        return int(m.group(1))
+    m = re.search(r"monthly\s+on\s+(?:the\s+)?(\d{1,2})", text.lower())
+    if m:
+        return int(m.group(1))
+    return None
+
 def _parse_recurring_time(text: str):
     """
     Parse just the time-of-day for recurring reminders like 'every day at 5am'.
@@ -126,21 +146,31 @@ def _parse_task(text: str) -> str:
     return task or "Reminder from SHRRI"
 
 
-def _schedule_recurring(hour: int, minute: int, task: str) -> str:
-    """Existing crontab-based daily reminder."""
-    cron_cmd = f'{minute} {hour} * * * DISPLAY=:0 /usr/bin/notify-send "SHRRI Reminder" "{task}" 2>/dev/null'
+def _schedule_recurring(hour: int, minute: int, task: str, freq: str = "daily", weekday: int = None, day: int = None) -> str:
+    """Crontab-based reminder with Telegram delivery."""
+    notify_cmd = f'python3 /home/shrridharshan/shrri/tools/telegram_notify.py "⏰ SHRRI Reminder: {task}"'
+    if freq == "weekly" and weekday is not None:
+        cron_expr = f"{minute} {hour} * * {weekday}"
+        _cron_day_names = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'}
+        human = f"weekly on {_cron_day_names.get(weekday,'Mon')} at {hour:02d}:{minute:02d}"
+    elif freq == "monthly" and day is not None:
+        cron_expr = f"{minute} {hour} {day} * *"
+        human = f"monthly on day {day} at {hour:02d}:{minute:02d}"
+    else:
+        cron_expr = f"{minute} {hour} * * *"
+        human = f"daily at {hour:02d}:{minute:02d}"
+    cron_cmd = f"{cron_expr} {notify_cmd}"
     result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
     existing = result.stdout if result.returncode == 0 else ''
     new_crontab = existing.rstrip() + '\n' + cron_cmd + '\n'
     subprocess.run(['crontab', '-'], input=new_crontab, text=True, check=True)
-    time_str = f"{hour:02d}:{minute:02d}"
-    return f"⏰ Daily reminder set for {time_str} — I'll notify you every day to: {task}"
+    return f"⏰ Reminder set ({human}) — I'll message you on Telegram to: {task}"
 
 
 def _schedule_oneshot(remind_time: datetime, task: str) -> str:
-    """One-shot reminder via `at`, fires once on the exact date+time."""
+    """One-shot reminder via at — sends Telegram message."""
     at_time_str = remind_time.strftime("%H:%M %Y-%m-%d")
-    notify_cmd = f'DISPLAY=:0 /usr/bin/notify-send "SHRRI Reminder" "{task}"'
+    notify_cmd = f'python3 /home/shrridharshan/shrri/tools/telegram_notify.py "⏰ SHRRI Reminder: {task}"'
     proc = subprocess.run(
         ['at', at_time_str],
         input=notify_cmd,
@@ -149,9 +179,8 @@ def _schedule_oneshot(remind_time: datetime, task: str) -> str:
     )
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or "`at` scheduling failed")
-
     time_str = remind_time.strftime("%I:%M %p on %d %b %Y")
-    return f"⏰ Reminder set for {time_str} — I'll notify you to: {task}"
+    return f"⏰ Reminder set for {time_str} — I'll message you on Telegram to: {task}"
 
 
 def set_reminder(message: str) -> str:
@@ -165,7 +194,15 @@ def set_reminder(message: str) -> str:
                 return ("GAP: couldn't understand the time for the recurring reminder. "
                         "Try 'remind me every day at 6pm to call mom'.")
             hour, minute = time_result
-            return _schedule_recurring(hour, minute, task)
+            msg_lower = message.lower()
+            if any(w in msg_lower for w in ["every week","weekly","every monday","every tuesday","every wednesday","every thursday","every friday","every saturday","every sunday"]):
+                weekday = _parse_weekday(message)
+                return _schedule_recurring(hour, minute, task, freq="weekly", weekday=weekday if weekday is not None else 0)
+            elif any(w in msg_lower for w in ["every month","monthly"]):
+                day = _parse_monthly_day(message) or 1
+                return _schedule_recurring(hour, minute, task, freq="monthly", day=day)
+            else:
+                return _schedule_recurring(hour, minute, task, freq="daily")
 
         remind_dt = _parse_datetime(message)
         if not remind_dt:
@@ -177,6 +214,38 @@ def set_reminder(message: str) -> str:
         return f"GAP: reminder failed — {e}"
 
 
+
+def delete_reminder(keyword: str) -> str:
+    """Delete a specific reminder matching keyword."""
+    try:
+        deleted = []
+        # Check cron
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            lines = result.stdout.strip().split('\n')
+            kept = []
+            for l in lines:
+                if 'SHRRI Reminder' in l and keyword.lower() in l.lower():
+                    deleted.append("cron: " + l[:60])
+                else:
+                    kept.append(l)
+            if deleted:
+                subprocess.run(['crontab', '-'], input='\n'.join(kept) + '\n', text=True, check=True)
+        # Check at jobs
+        atq = subprocess.run(['atq'], capture_output=True, text=True)
+        if atq.returncode == 0 and atq.stdout.strip():
+            for line in atq.stdout.strip().split('\n'):
+                parts = line.split('\t') if '\t' in line else line.split()
+                job_id = parts[0]
+                cat_result = subprocess.run(['at', '-c', job_id], capture_output=True, text=True)
+                if 'SHRRI Reminder' in cat_result.stdout and keyword.lower() in cat_result.stdout.lower():
+                    subprocess.run(['atrm', job_id], capture_output=True)
+                    deleted.append(f"at job {job_id}")
+        if not deleted:
+            return f"No reminder found matching '{keyword}'."
+        return f"✅ Deleted {len(deleted)} reminder(s) matching '{keyword}'."
+    except Exception as e:
+        return f"GAP: {e}"
 
 def delete_all_reminders() -> str:
     """Delete all SHRRI reminders — both cron (daily) and at (one-shot)."""
@@ -218,8 +287,17 @@ def list_reminders() -> str:
 
         result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip():
-            lines = [l for l in result.stdout.strip().split('\n') if 'notify-send' in l and 'SHRRI Reminder' in l]
+            lines = [l for l in result.stdout.strip().split('\n') if 'SHRRI Reminder' in l or ('telegram_notify' in l and 'Reminder' in l)]
             for l in lines:
+                # Try telegram_notify pattern first
+                tm = re.search(r'(\d+)\s+(\d+)\s+\*\s+\*\s+(\S+).*telegram_notify\.py.*Reminder:\s*([^"]+)"', l)
+                if tm:
+                    mi, h, wd, task = int(tm.group(1)), int(tm.group(2)), tm.group(3), tm.group(4).strip()
+                    t = datetime.now(IST).replace(hour=h, minute=mi).strftime("%I:%M %p")
+                    _dn = {'0':'Sun','1':'Mon','2':'Tue','3':'Wed','4':'Thu','5':'Fri','6':'Sat','*':'daily'}
+                    freq = "daily" if wd == "*" else f"every {_dn.get(wd, wd)}"
+                    out_lines.append(f"  • {t} ({freq}) — {task}")
+                    continue
                 m = re.search(r'(\d+)\s+(\d+)\s+\*.*notify-send.*"SHRRI Reminder"\s+"([^"]+)"', l)
                 if m:
                     h, mi, task = int(m.group(2)), int(m.group(1)), m.group(3)

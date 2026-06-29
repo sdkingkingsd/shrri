@@ -46,6 +46,12 @@ def _hardcoded_intent(message: str):
             "body": body.group(1).strip() if body else message
         }}
 
+    # Recurring reminder — must fire before LLM to avoid calendar misrouting
+    _remind_triggers = ["remind me every", "every monday", "every tuesday", "every wednesday",
+        "every thursday", "every friday", "every saturday", "every sunday",
+        "every week", "weekly remind", "every day", "daily remind", "every morning", "every night"]
+    if any(t in msg for t in _remind_triggers) and any(w in msg for w in ["remind", "to ", "notify", "alert"]):
+        return {"tool": "reminder", "action": "set", "params": {"query": message}}
     return None
 
 
@@ -83,6 +89,7 @@ Tools available:
 - reminder_set: set a reminder or alert
 - reminder_list: show existing reminders
 - reminder_delete: delete all reminders or clear all reminders
+- reminder_delete_one: delete a specific reminder by keyword
 - notes_save: save/add/remember a note
 - notes_show: show/list/find notes
 - notes_delete: delete a note
@@ -160,6 +167,8 @@ def detect_intent(message: str) -> dict:
         return {"tool": "reminder", "action": "list", "params": {}}
     elif tool == "reminder_delete":
         return {"tool": "reminder", "action": "delete_all", "params": {}}
+    elif tool == "reminder_delete_one":
+        return {"tool": "reminder", "action": "delete_one", "params": {"query": message}}
     elif tool == "notes_save":
         return {"tool": "notes", "action": "save", "params": {"query": message}}
     elif tool == "notes_show":
@@ -253,11 +262,16 @@ def run_tool(intent: dict, message: str) -> str:
         return show_notes(params.get("query", message))
 
     if tool == "reminder":
-        from tools.reminder_tool import set_reminder, list_reminders, delete_all_reminders
+        from tools.reminder_tool import set_reminder, list_reminders, delete_all_reminders, delete_reminder
         if action == "list":
             return list_reminders()
         if action == "delete_all":
             return delete_all_reminders()
+        if action == "delete_one":
+            import re as _re
+            _q = params.get("query", message)
+            _kw = _re.sub(r'^(delete|remove|cancel)\s+(reminder|remind)\s*(for|about)?\s*', '', _q, flags=_re.IGNORECASE).strip()
+            return delete_reminder(_kw or _q)
         return set_reminder(params.get("query", message))
 
     if tool == "calendar":
