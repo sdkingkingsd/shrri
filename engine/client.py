@@ -290,6 +290,25 @@ Summary:"""
             if wake:
                 return f"You wake up at {wake} da."
             return "I don't know your wake time yet. Tell me!"
+        # Hybrid semantic + keyword memory search
+        semantic_triggers = ["search my memory", "memory search", "find in memory",
+                             "semantic search", "search for when", "find when i said"]
+        if any(t in msg_lower for t in semantic_triggers):
+            try:
+                import sys as _sys2
+                _sys2.path.insert(0, "/home/shrridharshan/shrri")
+                from scripts.semantic_search import hybrid_search
+                query = message.strip()
+                for t in semantic_triggers:
+                    query = query.replace(t, "").strip()
+                hits = hybrid_search(query, n=5)
+                if hits:
+                    lines = ["- [" + h["source"] + "] [" + h["timestamp"] + "]: " + h["text"][:150] for h in hits]
+                    return "Memory search results:\n" + "\n".join(lines)
+                return "Nothing found in memory for: " + query
+            except Exception as e:
+                pass
+
         # Notes search — before router grabs "do you remember"
         notes_triggers = ["do you remember", "did i mention", "search notes",
                           "what did i say", "what did we discuss", "what did we talk"]
