@@ -23,3 +23,10 @@ piper_voices/*.wav
 # Screenshots and debug output
 *.png
 *.txt
+
+# Backup and temp files
+*.bak
+*.bak_memfix
+*.sh
+PyWhatKit_DB.txt
+patches/
