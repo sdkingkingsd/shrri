@@ -493,7 +493,7 @@ function shutdown(signal) {
   console.log(`[wa_bridge] Received ${signal}, flushing state and exiting...`);
   flushContactNames();
   flushRecentMessages();
-  process.exit(0);
+  setTimeout(() => process.exit(0), 1500);
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -53,6 +53,9 @@ def lock_auth():
     """Zip auth/ then encrypt the zip, remove plain auth/."""
     if not os.path.exists(AUTH_DIR):
         return
+    # Keep one rolling backup of the previous good auth before overwriting
+    if os.path.exists(AUTH_ENC):
+        shutil.copy2(AUTH_ENC, AUTH_ENC + ".bak")
     # Create zip
     with zipfile.ZipFile(AUTH_ZIP, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(AUTH_DIR):

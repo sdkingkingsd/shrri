@@ -213,8 +213,10 @@ Summary:"""
                 p = pending["payload"]
                 if msg_lower_for_pending in ("yes", "y", "send", "confirm", "ok", "okay"):
                     self.memory.clear_pending_action()
-                    from tools.whatsapp_tool import send_whatsapp_confirmed
-                    result = send_whatsapp_confirmed(p["contact"], p["text"])
+                    from engine.mcp.mcp_client import call_tool_sync
+                    result = call_tool_sync("whatsapp", "send_whatsapp", {
+                        "contact": p["contact"], "text": p["text"]
+                    })
                     if result.startswith("GAP: no contact found") or result.startswith("GAP: contact not found"):
                         # Google Contacts and bridge both failed to resolve the name.
                         # Ask for the number once, then save it and retry automatically.
@@ -251,11 +253,28 @@ Summary:"""
                                   json={"name": p["contact"], "phone": digits}, timeout=5)
                     except Exception:
                         pass
-                    from tools.whatsapp_tool import send_whatsapp_confirmed
-                    result = send_whatsapp_confirmed(digits, p["text"])
+                    from engine.mcp.mcp_client import call_tool_sync
+                    result = call_tool_sync("whatsapp", "send_whatsapp", {
+                        "contact": digits, "text": p["text"]
+                    })
                     return result + f" (Saved {p['contact']} for next time.)"
                 else:
                     return "That doesn't look like a valid number. Send the full number with country code (e.g. 919876543210)."
+            elif pending["action_type"] == "weather_need_city":
+                self.memory.clear_pending_action()
+                from tools.weather_tool import get_weather
+                return get_weather(message.strip())
+
+        # ── Agentic loop intercept — multi-step / conditional requests
+        # get routed here, BEFORE detect_intent/memory intercepts, so a
+        # single "send X to Y" style tool match doesn't short-circuit a
+        # request like "if X, do Y". ──
+        from .agentic_loop import looks_multi_step, run_agentic_loop
+        if looks_multi_step(message):
+            try:
+                return run_agentic_loop(message, self.router, memory=self.memory)
+            except Exception as e:
+                print(f"[SHRRI] Agentic loop failed: {e} — falling back to normal pipeline")
 
         # ── Memory command intercepts (must run BEFORE detect_intent) ──
         msg_lower = message.lower().strip()
@@ -322,7 +341,7 @@ Summary:"""
                     return "No notes found for today yet."
                 _skip = {"what","when","where","did","you","remember","discuss","about","have","that","this","with","work","talk"}
                 _kw = [w for w in msg_lower.split() if len(w) > 3 and w not in _skip]
-                _query = " OR ".join(_kw[:4]) if _kw else msg_lower
+                _query = " OR ".join(_kw[:4]) if _kw else " OR ".join([w for w in msg_lower.split() if len(w) > 2][:4]) or '""'
                 _rows = _conn.execute("SELECT date, content FROM daily_notes WHERE daily_notes_fts MATCH ? ORDER BY rank LIMIT 3", (_query,)).fetchall()
                 _conn.close()
                 if _rows:
@@ -406,7 +425,7 @@ Summary:"""
                     return "No notes found for today yet."
                 _skip = {"what","when","where","did","you","remember","discuss","about","have","that","this","with","work","talk","said","mention"}
                 _kw = [w for w in msg_lower.split() if len(w) > 3 and w not in _skip]
-                _query = " OR ".join(_kw[:4]) if _kw else msg_lower
+                _query = " OR ".join(_kw[:4]) if _kw else " OR ".join([w for w in msg_lower.split() if len(w) > 2][:4]) or '""'
                 try:
                     _rows = _conn.execute("SELECT date, content FROM daily_notes_fts WHERE daily_notes_fts MATCH ? ORDER BY rank LIMIT 3", (_query,)).fetchall()
                 except Exception:
@@ -542,7 +561,7 @@ Summary:"""
                 return raw
         if _intent.get("tool") == "schedule":
             return _intent.get("result", "Scheduled.")
-        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec", "schedule", "wa_auto", "web_extract"):
+        if _intent["tool"] in ("math", "time", "date", "weather", "calendar", "reminder", "briefing", "whatsapp", "notes", "system", "files", "youtube", "wa_read", "pyexec", "schedule", "wa_auto", "web_extract", "imagegen", "join_meet"):
             result = run_tool(_intent, message)
             if result and result.startswith("WHATSAPP_CONFIRM_NEEDED|"):
                 _, _wa_contact, _wa_text = result.split("|", 2)
@@ -575,6 +594,55 @@ Summary:"""
             _, vid_id, transcript = result.split("|", 2)
             message = f"Summarize this YouTube video transcript in 5 bullet points:\n\n{transcript}"
             result = None  # fall through to LLM
+
+        # ── MCP fallback: nothing else matched, try live MCP tools ──
+        if isinstance(_intent, dict) and _intent.get("tool") == "none":
+            try:
+                from engine.mcp.mcp_client import list_tools_sync, call_tool_sync
+                _mcp_tools = list_tools_sync()
+                if _mcp_tools:
+                    _tool_lines = "\n".join(
+                        f'- server="{t["server"]}" tool="{t["name"]}": {t["description"][:100]}'
+                        for t in _mcp_tools
+                    )
+                    _mcp_prompt = (
+                        "You are a tool router. Given the user message and the list of "
+                        "available MCP tools below, decide if ONE of them clearly matches "
+                        "the user's request. If yes, respond with ONLY this JSON (no markdown, "
+                        "no explanation):\n"
+                        '{"server": "<server>", "tool": "<tool>", "arguments": {...}}\n'
+                        'If none match, respond with exactly: {"server": "none"}\n\n'
+                        "IMPORTANT: The filesystem server's sandbox root is the ABSOLUTE path "
+                        "/home/shrridharshan/shrri_mcp_sandbox — always build full absolute "
+                        "paths under that root (e.g. /home/shrridharshan/shrri_mcp_sandbox/hello.txt). "
+                        "Never use placeholders, relative paths, or invented paths. Use the exact "
+                        "argument key names shown in each tool's own schema/description (e.g. "
+                        "'path' for filesystem read/write/list tools).\n\n"
+                        f"Available tools:\n{_tool_lines}\n\n"
+                        f'User message: "{message}"'
+                    )
+                    import json as _json, re as _re
+                    _raw = self.router.chat(_mcp_prompt, task="fast", web_search=False)
+                    _raw = _re.sub(r"```json|```", "", _raw).strip()
+                    _decision = _json.loads(_raw)
+                    if _decision.get("server") and _decision["server"] != "none":
+                        _args = _decision.get("arguments")
+                        if not _args:
+                            # Model put params at top level instead of nesting
+                            # them under "arguments" — collect everything
+                            # except the routing keys themselves.
+                            _args = {k: v for k, v in _decision.items()
+                                      if k not in ("server", "tool")}
+                        _mcp_result = call_tool_sync(
+                            _decision["server"], _decision["tool"], _args
+                        )
+                        if _mcp_result and not _mcp_result.startswith("GAP:"):
+                            self.memory.save_message("user", message)
+                            self.memory.save_message("assistant", _mcp_result)
+                            return _mcp_result
+            except Exception as _mcp_e:
+                print(f"[mcp] fallback routing failed: {_mcp_e}")
+        # ── End MCP fallback ──
 
         # Detect correction — user is teaching SHRRI
         correction = self._detect_correction(message)
@@ -769,7 +837,7 @@ Summary:"""
         if has_tamil_script and not is_casual and not has_tanglish:
             system = "OVERRIDE: Reply in Tamil only.\n\n" + system
         else:
-            system = "OVERRIDE: Reply in English or Tanglish (Tamil+English mix) only. Never reply in pure Tamil script. English only unless user explicitly writes Tamil script.\n\n" + system
+            system = "OVERRIDE: Reply in English or Tanglish (Tamil+English mix). When using Tamil words (e.g. da, pannu, irukku, vanakkam), ALWAYS write them in Tamil script (e.g. பண்ணு, இருக்கு, வணக்கம்), never in romanized/Latin letters. English words stay in English. Do not write Tamil words using English letters under any circumstance.\n\n" + system
 
         # Auto personality
         _personality = detect_personality(message)
@@ -825,6 +893,7 @@ Summary:"""
 
         if task == "default":
             task = self.agents.get_agent_task(agent_used)
+        _capability = self.agents.get_agent_capability(agent_used)
 
         # Decide whether this message goes through the step-by-step +
         # verify-against-constraints path (NOT "self-thinking" — see
@@ -842,8 +911,18 @@ Summary:"""
         if relevant_skill:
             system += "\n\n[Skill Knowledge]\n" + relevant_skill[:800]
 
-        # Get response
-        response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=(_intent.get("tool") in ("search", "news") if isinstance(_intent, dict) else False))
+        # Agentic loop — for multi-step / conditional requests, plan and
+        # execute steps instead of a single-shot reply.
+        from .agentic_loop import looks_multi_step, run_agentic_loop
+        if looks_multi_step(message):
+            try:
+                response = run_agentic_loop(message, self.router, memory=self.memory)
+            except Exception as e:
+                print(f"[SHRRI] Agentic loop failed: {e} — falling back to single-shot")
+                response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=False, capability=_capability)
+        else:
+            # Get response
+            response = self.router.chat(outgoing_message, task, history=history, system=system, web_search=(_intent.get("tool") in ("search", "news") if isinstance(_intent, dict) else False), capability=_capability)
 
         # Self-critique — only for complex responses (Agent Q style)
         # Generate 2nd response and pick better one — silent, only winner shown

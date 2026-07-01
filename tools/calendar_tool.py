@@ -8,11 +8,22 @@ IST = pytz.timezone("Asia/Kolkata")
 def _get_service():
     from googleapiclient.discovery import build
     from google.oauth2.credentials import Credentials
-    import os, pickle
+    from google.auth.transport.requests import Request
+    import os
 
-    token_path = os.path.expanduser("~/.shrri/calendar_token.pickle")
-    with open(token_path, 'rb') as f:
-        creds = pickle.load(f)
+    token_path = os.path.expanduser("~/.shrri/gmail_token.json")
+    SCOPES = [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/gmail.modify",
+    ]
+    creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+    if not creds.valid and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        with open(token_path, "w") as f:
+            f.write(creds.to_json())
     return build('calendar', 'v3', credentials=creds)
 
 
@@ -145,8 +156,20 @@ def create_event(message: str) -> str:
             'end': {'dateTime': end_dt.isoformat(), 'timeZone': 'Asia/Kolkata'},
         }
 
-        created = service.events().insert(calendarId='primary', body=event).execute()
-        return f"📅 Event created: {title} on {start_dt.strftime('%d %b at %I:%M %p')}"
+        event['conferenceData'] = {
+            'createRequest': {
+                'requestId': f'shrri-meet-{int(start_dt.timestamp())}',
+                'conferenceSolutionKey': {'type': 'hangoutsMeet'}
+            }
+        }
+        created = service.events().insert(calendarId='primary', body=event, conferenceDataVersion=1).execute()
+        meet_link = ""
+        try:
+            meet_link = created['conferenceData']['entryPoints'][0]['uri']
+        except Exception:
+            pass
+        meet_str = f" | Meet: {meet_link}" if meet_link else ""
+        return f"📅 Event created: {title} on {start_dt.strftime('%d %b at %I:%M %p')}{meet_str}"
 
     except Exception as e:
         return f"GAP: could not create event — {e}"
@@ -288,9 +311,21 @@ def create_event_full(title: str, date_str: str, time_str: str, duration_hours: 
         if location: body['location'] = location
         if description: body['description'] = description
         service = _get_service()
-        service.events().insert(calendarId='primary', body=body).execute()
+        body['conferenceData'] = {
+            'createRequest': {
+                'requestId': f'shrri-meet-{int(start_dt.timestamp())}',
+                'conferenceSolutionKey': {'type': 'hangoutsMeet'}
+            }
+        }
+        created = service.events().insert(calendarId='primary', body=body, conferenceDataVersion=1).execute()
+        meet_link = ""
+        try:
+            meet_link = created['conferenceData']['entryPoints'][0]['uri']
+        except Exception:
+            pass
         loc_str = f" at {location}" if location else ""
-        return f"Event created: {title}{loc_str} on {start_dt.strftime('%d %b at %I:%M %p')}"
+        meet_str = f" | Meet: {meet_link}" if meet_link else ""
+        return f"Event created: {title}{loc_str} on {start_dt.strftime('%d %b at %I:%M %p')}{meet_str}"
     except Exception as e:
         return f"GAP: could not create event - {e}"
 
@@ -331,3 +366,38 @@ def create_recurring_event(title: str, date_str: str, time_str: str,
         return f"Recurring event created: {title} - {recurrence} x{count} starting {start_dt.strftime('%d %b at %I:%M %p')}"
     except Exception as e:
         return f"GAP: could not create recurring event - {e}"
+
+
+def join_meet(query: str = "") -> str:
+    """Find the next upcoming Google Meet link and open it in Chrome."""
+    try:
+        service = _get_service()
+        now = datetime.now(IST)
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=now.isoformat(),
+            maxResults=10,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+        for event in events:
+            meet_link = None
+            try:
+                for ep in event.get('conferenceData', {}).get('entryPoints', []):
+                    if ep.get('entryPointType') == 'video':
+                        meet_link = ep['uri']
+                        break
+            except Exception:
+                pass
+            if not meet_link:
+                meet_link = event.get('hangoutLink')
+            if meet_link:
+                title = event.get('summary', 'Meeting')
+                start = event['start'].get('dateTime', '')
+                import subprocess
+                subprocess.Popen(['xdg-open', meet_link])
+                return f"Opening Meet for '{title}' — {meet_link}"
+        return "GAP: no upcoming events with a Meet link found."
+    except Exception as e:
+        return f"GAP: could not find Meet link — {e}"

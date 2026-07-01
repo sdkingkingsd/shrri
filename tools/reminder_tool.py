@@ -238,7 +238,7 @@ def delete_reminder(keyword: str) -> str:
                 parts = line.split('\t') if '\t' in line else line.split()
                 job_id = parts[0]
                 cat_result = subprocess.run(['at', '-c', job_id], capture_output=True, text=True)
-                if 'SHRRI Reminder' in cat_result.stdout and keyword.lower() in cat_result.stdout.lower():
+                if ('telegram_notify.py' in cat_result.stdout and '--reminder' in cat_result.stdout) and keyword.lower() in cat_result.stdout.lower():
                     subprocess.run(['atrm', job_id], capture_output=True)
                     deleted.append(f"at job {job_id}")
         if not deleted:
@@ -255,7 +255,7 @@ def delete_all_reminders() -> str:
         result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip():
             lines = result.stdout.strip().split('\n')
-            kept = [l for l in lines if not ('notify-send' in l and 'SHRRI Reminder' in l)]
+            kept = [l for l in lines if not ('SHRRI Reminder' in l or ('telegram_notify.py' in l and '--reminder' in l))]
             removed = len(lines) - len(kept)
             new_crontab = '\n'.join(kept) + '\n'
             subprocess.run(['crontab', '-'], input=new_crontab, text=True, check=True)
@@ -269,7 +269,7 @@ def delete_all_reminders() -> str:
                 parts = line.split('\t') if '\t' in line else line.split()
                 job_id = parts[0]
                 cat_result = subprocess.run(['at', '-c', job_id], capture_output=True, text=True)
-                if 'SHRRI Reminder' in cat_result.stdout:
+                if ('SHRRI Reminder' in cat_result.stdout) or ('telegram_notify.py' in cat_result.stdout and '--reminder' in cat_result.stdout):
                     subprocess.run(['atrm', job_id], capture_output=True)
                     count += 1
             if count:
@@ -310,7 +310,7 @@ def list_reminders() -> str:
                 parts = line.split('\t') if '\t' in line else line.split()
                 job_id = parts[0]
                 cat_result = subprocess.run(['at', '-c', job_id], capture_output=True, text=True)
-                task_match = re.search(r'notify-send\s+"SHRRI Reminder"\s+"([^"]+)"', cat_result.stdout)
+                task_match = re.search(r'telegram_notify\.py.*--reminder\s+"([^"]+)"', cat_result.stdout)
                 task = task_match.group(1) if task_match else "Reminder"
                 m = re.match(r'^\S+\s+(\w{3}\s+\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4})', line)
                 when = m.group(1) if m else line

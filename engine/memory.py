@@ -8,11 +8,39 @@ DB_PATH = os.environ.get("SHRRI_MEMORY_DB_OVERRIDE") or os.path.expanduser("~/.s
 DB_ENC_PATH = DB_PATH + ".enc"
 
 
+def _sanitize_fts_query(text):
+    """Strip characters that break SQLite FTS5 MATCH syntax
+    (commas, quotes, hyphens, parens, colons, etc.) and reduce
+    to an OR-joined list of plain word tokens."""
+    import re as _re
+    words = _re.findall(r"[A-Za-z0-9]+", text)
+    words = [w for w in words if len(w) > 2]
+    if not words:
+        return '""'  # empty match, matches nothing safely
+    return " OR ".join(words[:8])
+
+
 class Memory:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        # Singleton: every Memory() call in this process returns the same
+        # decrypted connection, so writes from one part of the codebase
+        # (e.g. dispatcher.py) are immediately visible to another (e.g.
+        # the long-lived engine instance) without needing to pass the
+        # object around everywhere.
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
     def __init__(self):
+        if self._initialized:
+            return
         self.tmp_db = None
         self.conn = self._open_db()
         self._init_tables()
+        self._initialized = True
 
     def _open_db(self):
         """Open DB — decrypt if encrypted, else use plain."""
@@ -28,10 +56,10 @@ class Memory:
             tmp.write(data)
             tmp.close()
             self.tmp_db = tmp.name
-            return sqlite3.connect(self.tmp_db)
+            return sqlite3.connect(self.tmp_db, check_same_thread=False)
 
         # Plain DB fallback
-        return sqlite3.connect(DB_PATH)
+        return sqlite3.connect(DB_PATH, check_same_thread=False)
 
     def _save_encrypted(self):
         """Re-encrypt DB from temp file back to disk."""
@@ -222,9 +250,10 @@ class Memory:
         return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
 
     def search(self, query):
+        safe_query = _sanitize_fts_query(query)
         rows = self.conn.execute(
             "SELECT role, content FROM conversations_fts WHERE conversations_fts MATCH ? LIMIT 5",
-            (query,)
+            (safe_query,)
         ).fetchall()
         return [{"role": r[0], "content": r[1]} for r in rows]
 

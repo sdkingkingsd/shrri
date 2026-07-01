@@ -7,8 +7,12 @@ from .providers import (
     CerebrasProvider,
     NvidiaProvider,
     OllamaProvider,
-    TempLLMProvider
+    TempLLMProvider,
+    OpenRouterProvider,
+    GoogleProvider,
+    NaraProvider
 )
+from config.capability_map import get_candidates
 
 PROVIDER_PRIORITY = ["groq", "cerebras", "nvidia", "ollama"]
 
@@ -110,17 +114,13 @@ _FALLBACK_MAP = {
 def _get_tool_context(message: str) -> str:
     try:
         from tools.dispatcher import detect_intent, run_tool
+        # detect_intent() already runs its own thorough, Tamil/Tanglish-aware
+        # LLM classification when keyword matching fails - no need for a
+        # second redundant classifier call here. Trust its "none" verdict.
         intent = detect_intent(message)
         if intent["tool"] != "none":
             pass  # silent tool trigger
             return run_tool(intent, message)
-        # Fallback: keyword match found nothing — ask the AI what's needed
-        guessed = _classify_intent_llm(message)
-        if guessed in _FALLBACK_MAP:
-            tool, action = _FALLBACK_MAP[guessed]
-            print(f"[SHRRI] AI fallback routed to: {tool} ({action})")
-            fallback_intent = {"tool": tool, "action": action, "params": {"query": message}}
-            return run_tool(fallback_intent, message)
         return ""
     except Exception as e:
         print(f"[SHRRI] Tool dispatcher error: {e}")
@@ -142,10 +142,27 @@ class Router:
         elif provider_name == "ollama":
             base_url = self.km.get_base_url("ollama") or "http://localhost:11434"
             return OllamaProvider(base_url)
+        elif provider_name == "openrouter":
+            return OpenRouterProvider(api_key)
+        elif provider_name == "google":
+            return GoogleProvider(api_key)
+        elif provider_name == "nara":
+            base_url = self.km.get_base_url("nara")
+            return NaraProvider(api_key, base_url)
         return None
 
-    def chat(self, message, task="default", history=None, system=None, web_search=True):
-        priority = TASK_ROUTING.get(task, TASK_ROUTING["default"])
+    def chat(self, message, task="default", history=None, system=None, web_search=True, capability=None):
+        if capability:
+            candidates = get_candidates(capability)
+            priority = []
+            self._capability_models = {}
+            for prov, model in candidates:
+                if prov not in priority:
+                    priority.append(prov)
+                self._capability_models[prov] = model
+        else:
+            self._capability_models = {}
+            priority = TASK_ROUTING.get(task, TASK_ROUTING["default"])
 
         context = ""
         if web_search:
@@ -192,7 +209,9 @@ class Router:
                     if not api_key or api_key.startswith("YOUR_"):
                         break
 
-                    model = self.km.get_model(provider_name, task)
+                    model = getattr(self, "_capability_models", {}).get(provider_name)
+                    if not model:
+                        model = self.km.get_model(provider_name, task)
                     if not model:
                         model = self.km.get_model(provider_name)
 
@@ -201,7 +220,16 @@ class Router:
                         break
 
                     try:
-                        response = provider.chat(enriched_message, model, history=history, system=system)
+                        import concurrent.futures as _cf
+                        with _cf.ThreadPoolExecutor(max_workers=1) as _pool:
+                            _fut = _pool.submit(provider.chat, enriched_message, model, history=history, system=system)
+                            try:
+                                response = _fut.result(timeout=20)
+                            except _cf.TimeoutError:
+                                print(f"[SHRRI] {provider_name} key {key_id} timed out — skipping...")
+                                self.km.mark_cooldown(key_id, seconds=120)
+                                tried_ids.add(key_id)
+                                continue
                         # Treat empty/placeholder output as a failure, not a real answer —
                         # some models occasionally return blank content + blank reasoning,
                         # which providers.py turns into the literal string "No response".

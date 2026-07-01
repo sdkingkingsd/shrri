@@ -20,7 +20,8 @@ class GroqProvider:
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=4096
+            max_tokens=4096,
+            timeout=30
         )
         return response.choices[0].message.content
 
@@ -43,7 +44,8 @@ class CerebrasProvider:
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=1024
+            max_tokens=1024,
+            timeout=30
         )
         msg = response.choices[0].message
         text = msg.content if msg.content and msg.content.strip() else None
@@ -69,7 +71,8 @@ class NvidiaProvider:
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=4096
+            max_tokens=4096,
+            timeout=30
         )
         return response.choices[0].message.content
 
@@ -137,3 +140,76 @@ class TempLLMProvider:
             return response.strip()
         except Exception as e:
             raise Exception(f"TempLLM error: {e}")
+
+
+class OpenRouterProvider:
+    def __init__(self, api_key):
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1",
+            max_retries=0
+        )
+
+    def chat(self, message, model, history=None, system=None):
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": message})
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=4096,
+            timeout=30
+        )
+        return response.choices[0].message.content
+
+
+class GoogleProvider:
+    def __init__(self, api_key):
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            max_retries=0
+        )
+
+    def chat(self, message, model, history=None, system=None):
+        model = model.replace("models/", "")
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": message})
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=4096,
+            timeout=30
+        )
+        return response.choices[0].message.content
+
+
+class NaraProvider:
+    def __init__(self, api_key, base_url=None):
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url or "https://api.byNara.ai/v1",
+            max_retries=0
+        )
+
+    def chat(self, message, model, history=None, system=None):
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": message})
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=4096,
+            timeout=30
+        )
+        return response.choices[0].message.content

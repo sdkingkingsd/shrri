@@ -1,30 +1,36 @@
-"""Voice tool — Edge TTS, PallaviNeural Tamil female, +20% rate."""
-import subprocess, tempfile, os, re, asyncio
+"""Voice tool — Edge TTS, PallaviNeural (Tamil+English+Tanglish, cloud).
+Handles all three language types cleanly without any routing logic."""
+import subprocess, tempfile, os, re, asyncio, sys
 import speech_recognition as sr
+
 VOICE = "ta-IN-PallaviNeural"
 VOICE_RATE = "+5%"
+
+
 async def _speak_async(text: str):
     import edge_tts
-    text = text.replace("SHRRI", "Shree").replace("shrri", "Shree")
-    # Remove hyphens between English words and Tamil suffixes
-    text = re.sub(r'([a-zA-Z0-9])-([அ-ஹா-ௌ])', lambda m: m.group(1) + ' ' + m.group(2), text) if re.search(r'[஀-௿]', text) else text
-    # Insert space-comma-space before English words so Pallavi pronounces them
-    text = re.sub(r'([a-zA-Z][a-zA-Z0-9]*)', lambda m: ' , ' + m.group(1), text) if re.search(r'[஀-௿]', text) else text
-    text = re.sub(r' +', ' ', text).strip()
     text = re.sub(r"[*#`•]", "", text).strip()
     if not text:
         return
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir="/tmp") as f:
         fname = f.name
-    communicate = edge_tts.Communicate(text, VOICE, rate=VOICE_RATE)
-    await communicate.save(fname)
-    subprocess.run(["mpg123", "-q", fname],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        os.unlink(fname)
-    except Exception:
-        pass
+        communicate = edge_tts.Communicate(text, VOICE, rate=VOICE_RATE)
+        await communicate.save(fname)
+        subprocess.run(["mpg123", "-q", fname],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    finally:
+        try:
+            os.unlink(fname)
+        except Exception:
+            pass
+
+
 def speak(text: str):
+    text = text.replace("SHRRI", "ஷ்ரீ").replace("shrri", "ஷ்ரீ")
+    text = re.sub(r"[*#`•]", "", text).strip()
+    if not text:
+        return
     try:
         try:
             loop = asyncio.get_event_loop()
@@ -39,9 +45,9 @@ def speak(text: str):
     except Exception:
         try:
             from gtts import gTTS
-            tts = gTTS(text=text, lang="ta", slow=False)
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir="/tmp") as f:
                 fname = f.name
+            tts = gTTS(text=text, lang="ta", slow=False)
             tts.save(fname)
             subprocess.run(["mpg123", "-q", fname],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -49,6 +55,8 @@ def speak(text: str):
         except Exception:
             subprocess.run(["espeak-ng", "-v", "ta", text],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def listen() -> str:
     import threading
     result = [""]

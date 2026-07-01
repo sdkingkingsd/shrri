@@ -6,6 +6,8 @@ from getpass import getpass
 
 KEY_FILE = os.path.expanduser("~/.shrri/.shrri_key")
 
+_cached_fernet = None
+
 
 def _derive_key(password: str) -> bytes:
     """Derive a Fernet key from a password using SHA256."""
@@ -34,18 +36,28 @@ def setup_encryption(password: str = None):
     return True
 
 
+_cached_fernet = None
+
 def load_key(password: str = None) -> Fernet:
-    """Load encryption key. Asks for password if key file missing."""
+    """Load encryption key. Caches in memory. Checks env var before prompting."""
+    global _cached_fernet
+    if _cached_fernet is not None:
+        return _cached_fernet
+
     if os.path.exists(KEY_FILE):
         with open(KEY_FILE, "rb") as f:
             key = f.read()
-        return Fernet(key)
+        _cached_fernet = Fernet(key)
+        return _cached_fernet
 
-    # Key file missing — ask for password
+    # Key file missing — check env var first (for services), then prompt
+    if not password:
+        password = os.environ.get("SHRRI_MASTER_PASSWORD")
     if not password:
         password = getpass("SHRRI master password: ")
     key = _derive_key(password)
-    return Fernet(key)
+    _cached_fernet = Fernet(key)
+    return _cached_fernet
 
 
 def encrypt_file(filepath: str, fernet: Fernet = None):

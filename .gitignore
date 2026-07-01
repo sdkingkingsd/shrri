@@ -1,21 +1,25 @@
-__pycache__/
+# Local secrets — never commit
+shrri_config_local.py
 *.pyc
-.env
-*.enc
-.shrri/
-*.db
+__pycache__/
+
+# Runtime data & logs
 *.log
-node_modules/
-.DS_Store
-subprocess
-sys
-time
-wa_bridge/auth/
-wa_bridge/contacts.json
-wa_bridge/recent_messages.json
-wa_bridge/auth.zip.enc
-wa_bridge/contacts.json.enc
-wa_bridge/recent_messages.json.enc
+*.db
+*.sqlite
+
+# These live in ~/.shrri/, not here — just in case
+keys.yaml
+gmail_credentials.json
+gmail_token.json
+contacts_token.json
+mcp_servers.json
+
+# Large binary voice models
+piper_voices/*.onnx
+piper_voices/*.onnx.json
+piper_voices/*.wav
+
+# Screenshots and debug output
 *.png
-__pycache__/
-*.pyc
+*.txt

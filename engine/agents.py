@@ -67,6 +67,9 @@ class AgentRouter:
     def get_agent_prompt(self, category):
         return AGENT_PROMPTS.get(category, "")
 
+    def get_agent_capability(self, category):
+        return AGENT_CAPABILITY_ROUTING.get(category, "conversation")
+
     def get_agent_task(self, category):
         return AGENT_TASK_ROUTING.get(category, "default")
 
@@ -147,3 +150,10 @@ class SubagentExecutor:
                 parts.append(f"[{task}]: timed out")
 
         return "\n\n".join(parts)
+
+AGENT_CAPABILITY_ROUTING = {
+    "chat": "conversation",
+    "code": "coding",
+    "plan": "reasoning",
+    "research": "reasoning",
+}

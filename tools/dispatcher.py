@@ -5,6 +5,21 @@ import re
 def _hardcoded_intent(message: str):
     msg = message.lower()
 
+    # Casual greetings / short chit-chat — never route to any tool.
+    # Must run first: short ambiguous messages like "hi da" were getting
+    # misclassified by the LLM intent classifier as whatsapp_reply etc.
+    _casual_greetings = {
+        "hi", "hi da", "hello", "hey", "hey da", "sup", "yo",
+        "vanakkam", "enna da", "enna", "hru", "how are you",
+        "wassup", "whats up", "what's up", "hii", "hiii",
+        "ok", "okay", "thanks", "thank you", "thanks da", "nandri"
+    }
+    _stripped = msg.strip().rstrip("!?.")
+    _words = _stripped.split()
+    _first_word_greeting = bool(_words) and _words[0] in {"hi", "hello", "hey", "vanakkam", "hii", "hiii"}
+    if _stripped in _casual_greetings or (len(_words) <= 3 and _first_word_greeting):
+        return {"tool": "none", "action": None, "params": {}}
+
     # Math
     if re.search(r"\d+\s*(?:[\+\-\*/%\^]|times|multiplied by|plus|minus|divided by)\s*\d+", msg):
         return {"tool": "math", "action": "calculate", "params": {"query": message}}
@@ -14,7 +29,7 @@ def _hardcoded_intent(message: str):
     # Time/Date
     if any(t in msg for t in ["what date", "today's date", "what day is it", "current date", "which date"]):
         return {"tool": "date", "action": "get_date", "params": {}}
-    if any(t in msg for t in ["what time", "current time", "time now", "what's the time", "tell me the time"]):
+    if any(t in msg for t in ["what time", "current time", "time now", "what's the time", "tell me the time", "check the time", "the time", "time is it", "time please", "time ah", "time sollu", "time பார்"]):
         return {"tool": "time", "action": "get_time", "params": {}}
 
     # Python code execution
@@ -24,6 +39,19 @@ def _hardcoded_intent(message: str):
     # YouTube
     if "youtube.com" in msg or "youtu.be" in msg:
         return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
+    # Image generation
+    if any(t in msg for t in ["generate an image", "generate image", "create an image",
+                                "create image", "draw me", "draw an image", "make an image",
+                                "generate a picture", "create a picture"]):
+        prompt = message
+        for prefix in ["generate an image of ", "generate image of ", "create an image of ",
+                       "create image of ", "draw me ", "draw an image of ", "make an image of ",
+                       "generate a picture of ", "create a picture of "]:
+            idx = msg.find(prefix)
+            if idx != -1:
+                prompt = message[idx + len(prefix):]
+                break
+        return {"tool": "imagegen", "action": "generate", "params": {"query": prompt}}
 
     # Draft detection — must come before send check
     if re.search(r"[^\s]+@[^\s]+\.[^\s]+", msg) and any(t in msg for t in ["draft", "save draft", "save a draft"]):
@@ -96,6 +124,10 @@ def _hardcoded_intent(message: str):
        re.search(r"\bauto.?(mode|reply|chat)\b.*\b(off|disable)\b", msg):
         return {"tool": "wa_auto", "action": "disable", "params": {}}
 
+    # Join Meet — fast path
+    if any(t in msg for t in ["join meet", "open meet", "join call", "join my meeting", "meet link", "join google meet"]):
+        return {"tool": "join_meet", "action": "join", "params": {}}
+
     # Recurring reminder — must fire before LLM to avoid calendar misrouting
     _remind_triggers = ["remind me every", "every monday", "every tuesday", "every wednesday",
         "every thursday", "every friday", "every saturday", "every sunday",
@@ -121,8 +153,13 @@ IMPORTANT RULES:
 Classify this message into exactly ONE of these tools:
 
 Tools available:
-- gmail_read: read/check emails or inbox
-- gmail_search: search for specific email
+- gmail_read: read/check emails or inbox in general, with NO specific sender, company,
+  subject, or keyword named (e.g. "check my email", "any new mail", "what's in my inbox")
+- gmail_search: the message names a SPECIFIC sender, company, person, or subject/keyword
+  to look for (e.g. "is there an email from X", "check for an email from Cerebras",
+  "any mail about the meeting", "search for John's email") — ALWAYS prefer this over
+  gmail_read whenever a specific name or keyword is mentioned, even if the message
+  also says "check"
 - gmail_read_body: open/explain/read full content of a specific email
 - gmail_send: send an email (only if explicitly asked to send/write email)
 - whatsapp_send: send a whatsapp message to someone
@@ -135,6 +172,7 @@ Tools available:
 - calendar_date: check schedule for a specific day (tomorrow, a weekday name, or a specific date)
 - calendar_upcoming: check upcoming/this week's events
 - calendar_create: create/add a new event or meeting
+- join_meet: join/open the next upcoming Google Meet call
 - calendar_delete: delete/cancel/remove an event
 - calendar_update: update/edit/change/reschedule an event
 - calendar_search: search/find events by keyword
@@ -184,10 +222,28 @@ def detect_intent(message: str) -> dict:
 
     msg = message.lower()
 
+    # MCP override: sandbox-folder file requests should go to the MCP
+    # filesystem server, not any legacy tool (files, notes, etc).
+    if "sandbox" in msg:
+        return {"tool": "none", "action": None, "params": {}}
+
     if tool == "gmail_read":
         return {"tool": "gmail", "action": "read", "params": {"max_results": 5}}
     elif tool == "gmail_search":
-        return {"tool": "gmail", "action": "search", "params": {"query": message}}
+        from engine.router import Router
+        _extract_prompt = (
+            "Extract ONLY the search keyword or sender name from this request, "
+            "suitable for a Gmail search box (e.g. a company name, person, or subject word). "
+            "Reply with ONLY the keyword, nothing else, no punctuation.\n\n"
+            f'Request: "{message}"'
+        )
+        try:
+            _kw = Router().chat(_extract_prompt, task="fast", web_search=False).strip().strip('"').strip(".,:")
+        except Exception:
+            _kw = message
+        if not _kw:
+            _kw = message
+        return {"tool": "gmail", "action": "search", "params": {"query": _kw}}
     elif tool == "gmail_read_body":
         return {"tool": "gmail", "action": "read_body", "params": {"query": message}}
     elif tool == "gmail_send":
@@ -268,6 +324,8 @@ def detect_intent(message: str) -> dict:
         return {"tool": "convsearch", "result": search_conversations(message)}
     elif tool == "youtube":
         return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
+    elif tool == "imagegen":
+        return {"tool": "imagegen", "action": "generate", "params": {"query": message}}
     else:
         return {"tool": "none", "action": None, "params": {}}
 
@@ -280,7 +338,7 @@ def run_tool(intent: dict, message: str) -> str:
     if tool == "whatsapp":
         action = intent.get("action", "send")
         if action == "reply":
-            from tools.whatsapp_tool import reply_to_message
+            from engine.mcp.mcp_client import call_tool_sync
             import json, re as _re
             from engine.router import Router as _R; _r = _R()
             _q = params.get("query", message)
@@ -289,17 +347,36 @@ Reply ONLY as JSON: {{"contact": "name of person", "reply_text": "the reply mess
             try:
                 _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
                 _d = json.loads(_raw)
-                return reply_to_message(_d.get("contact",""), _d.get("reply_text",""))
+                _contact = (_d.get("contact") or "").strip()
+                _reply_text = (_d.get("reply_text") or "").strip()
+                # Guard against the LLM fabricating a placeholder contact
+                # (e.g. "original query person", "the person", "someone")
+                # when the source message has no real reply info in it.
+                _bad_contact_signals = [
+                    "original query", "the person", "someone", "unknown",
+                    "n/a", "unspecified", "this person", "that person",
+                    "whoever", "recipient"
+                ]
+                _looks_fake = (
+                    not _contact
+                    or not _reply_text
+                    or any(sig in _contact.lower() for sig in _bad_contact_signals)
+                )
+                if _looks_fake:
+                    return "GAP: couldn't tell who to reply to or what to say — please specify a name and message, e.g. \"reply to Shrri saying hi\""
+                return call_tool_sync("whatsapp", "whatsapp_reply", {
+                    "contact": _contact, "reply_text": _reply_text
+                })
             except Exception as e:
                 return f"GAP: could not parse reply request — {e}"
         if action == "delete":
-            from tools.whatsapp_tool import delete_last_message
+            from engine.mcp.mcp_client import call_tool_sync
             import re as _re
             _q = params.get("query", message)
             _kw = _re.sub(r'^(delete|unsend|remove)\s+(my\s+)?(last\s+)?(message|whatsapp)?\s*(to|from|sent to)?\s*', '', _q, flags=_re.IGNORECASE).strip()
-            return delete_last_message(_kw or _q)
+            return call_tool_sync("whatsapp", "whatsapp_delete_last", {"contact": _kw or _q})
         if action == "forward":
-            from tools.whatsapp_tool import forward_message
+            from engine.mcp.mcp_client import call_tool_sync
             import json, re as _re
             from engine.router import Router as _R; _r = _R()
             _q = params.get("query", message)
@@ -308,7 +385,9 @@ Reply ONLY as JSON: {{"from_contact": "source contact name", "to_contact": "dest
             try:
                 _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
                 _d = json.loads(_raw)
-                return forward_message(_d.get("from_contact",""), _d.get("to_contact",""))
+                return call_tool_sync("whatsapp", "whatsapp_forward", {
+                    "from_contact": _d.get("from_contact",""), "to_contact": _d.get("to_contact","")
+                })
             except Exception as e:
                 return f"GAP: could not parse forward request — {e}"
         # Default action is "send" -- extract contact/text the same way
@@ -329,13 +408,27 @@ Examples:
 - "tell Priya happy birthday" -> {{"contact": "Priya", "text": "happy birthday"}}
 
 Now extract from: "{_q}"
-Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"}}"""
+If there is NO real recipient name mentioned in the text, set "contact" to an empty string "".
+Reply ONLY as JSON: {{"contact": "", "text": ""}}"""
         try:
             _raw = _re.sub(r"```json|```", "", _r.chat(_p, task="fast", web_search=False)).strip()
             _d = json.loads(_raw)
-            _contact = _d.get("contact", "")
-            _text = _d.get("text", "")
-            if not _contact or not _text:
+            _contact = (_d.get("contact") or "").strip()
+            _text = (_d.get("text") or "").strip()
+            # Guard against the LLM echoing back a placeholder/example
+            # value (e.g. "name of person") instead of a real contact
+            # when the source text has no actual recipient in it.
+            _bad_contact_signals = [
+                "name of person", "the person", "someone", "unknown",
+                "n/a", "unspecified", "this person", "that person",
+                "whoever", "recipient", "original query"
+            ]
+            _looks_fake = (
+                not _contact
+                or not _text
+                or any(sig in _contact.lower() for sig in _bad_contact_signals)
+            )
+            if _looks_fake:
                 return "GAP: could not figure out who to send to or what to say."
             return "WHATSAPP_CONFIRM_NEEDED|" + _contact + "|" + _text
         except Exception as e:
@@ -397,6 +490,9 @@ Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"
     if tool == "youtube":
         from tools.youtube_tool import summarize_youtube
         return summarize_youtube(params.get("query", message))
+    if tool == "imagegen":
+        from tools.image_gen import generate_image
+        return generate_image(params.get("query", message))
 
     if tool == "files":
         from tools.file_tool import file_search, open_file
@@ -428,6 +524,10 @@ Reply ONLY as JSON: {{"contact": "name of person", "text": "the message to send"
             _kw = _re.sub(r'^(delete|remove|cancel)\s+(reminder|remind)\s*(for|about)?\s*', '', _q, flags=_re.IGNORECASE).strip()
             return delete_reminder(_kw or _q)
         return set_reminder(params.get("query", message))
+
+    if tool == "join_meet":
+        from tools.calendar_tool import join_meet
+        return join_meet(params.get("query", ""))
 
     if tool == "calendar":
         from tools.calendar_tool import get_today_events, get_upcoming_events, get_events_for_date
@@ -542,12 +642,11 @@ Examples:
     if tool == "weather":
         from tools.weather_tool import get_weather
         import re as _wr
-        DEFAULT_LOCATION = "Chennai"  # change to your home city if needed
         TRAILING_FILLER = [
             "right now", "right", "now", "today", "currently", "please",
             "at the moment", "outside", "over there",
         ]
-        _wm = _wr.search(r"(?:weather|temp|temperature|forecast)\s+(?:in|for|at)\s+(.+)", params.get("query", message), _wr.IGNORECASE)
+        _wm = _wr.search(r"(?:weather|temp|temperature|forecast|raining|rain|sunny|snowing|snow|hot|cold|humid|windy|cloudy)\s+(?:in|for|at)\s+(.+)", params.get("query", message), _wr.IGNORECASE)
         if _wm:
             candidate = _wm.group(1).strip()
             # Strip trailing filler words/phrases (longest first) since they're
@@ -568,9 +667,11 @@ Examples:
             if candidate and not any(w in bad_words for w in words) and len(candidate) < 40:
                 location = candidate
             else:
-                location = DEFAULT_LOCATION
+                return "Which city's weather do you want — Erode or Chennai (or somewhere else)?"
         else:
-            location = DEFAULT_LOCATION
+            from engine.memory import Memory
+            Memory().set_pending_action("weather_need_city", {})
+            return "Which city's weather do you want — Erode or Chennai (or somewhere else)?"
         return get_weather(location)
 
     if tool == "math":
