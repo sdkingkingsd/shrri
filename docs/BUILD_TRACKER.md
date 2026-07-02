@@ -31,7 +31,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 
 ## Phase 4 — Workflow Engine
 - ⏳ Goal Planner
-- ⏳ Workflow Graph Builder
+- ✅ Workflow Graph Builder (tested — diamond dependency graph A→B,A→C,B+C→D resolves correctly step by step, cycle detection confirmed on forced circular dependency)
 - ⏳ Execution Scheduler
 - ✅ Task Queue (tested — FIFO ordering, status lifecycle pending/running/done/failed, result/error tracking all confirmed)
 - ✅ Checkpoint Manager (tested — state survives simulated restart via fresh SQLite connection, task statuses preserved, delete cleans up correctly)
