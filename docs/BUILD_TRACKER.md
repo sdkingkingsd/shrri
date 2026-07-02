@@ -15,8 +15,8 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 
 ## Phase 2 — Input Layer
 - ⏳ Wake Word Engine
-- ⏳ Speech To Text (Whisper.cpp)
-- ⏳ Language Detection Engine
+- ✅ Speech To Text (Whisper.cpp, multilingual base model)
+- ✅ Language Detection Engine
 - ⏳ Conversation Controller
 - ⏳ Notification Center (Android app side)
 
