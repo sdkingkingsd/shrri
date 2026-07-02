@@ -43,7 +43,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Manager Agent (tested — orchestrates GoalPlanner + ExecutionScheduler end-to-end, registers specialist agents via register_agent(), confirmed working with real multi-step goal through unified engine)
 - ✅ Research Agent (tested — confirmed real web search context injection via Router, cited live sources with timestamps for a current-price question, survived a tool dispatcher error + provider timeouts via existing failover)
 - ✅ Coding Agent (tested — routes through coding capability list, confirmed working code output; noted the LLM's own example didn't match its code's actual behavior — a model accuracy issue, not an agent bug)
-- ⏳ Browser Agent
+- ✅ Browser Agent (tested — real Playwright browsing confirmed against example.com, correctly extracted actual page heading, not a hallucinated guess)
 - ⏳ Vision Agent
 - ⏳ Planning Agent
 - ⏳ Memory Agent
