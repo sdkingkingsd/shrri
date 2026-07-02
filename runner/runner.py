@@ -1,12 +1,9 @@
 """
 SHRRI Runner — SHRRI AI OS v2 main execution engine.
 
-Wires together: SessionManager (with persistence), ContextBuilder,
-PermissionEngine, AuditLogger, and PairingManager.
-
-New commands handled directly by the runner (not the LLM):
-  "pair"                 -> restricted sender requests a pairing code
-  "approve <code>"       -> main-tier sender approves a pending code
+Wires together: SessionManager (persistence), ContextBuilder,
+PermissionEngine, AuditLogger, PairingManager, and now ProviderRouter —
+real LLM calls through your existing multi-provider routing.
 """
 
 from runner.session_manager import SessionManager
@@ -15,6 +12,7 @@ from runner.permission_engine import PermissionEngine
 from runner.persistence import SessionStore
 from runner.audit_log import AuditLogger
 from runner.pairing import PairingManager
+from runner.provider_router import ProviderRouter
 
 
 class Runner:
@@ -26,11 +24,10 @@ class Runner:
         self.permissions = PermissionEngine()
         self.audit = AuditLogger()
         self.pairing = PairingManager()
+        self.provider_router = ProviderRouter()
 
     def handle_message(self, channel: str, peer_id: str, message: str) -> str:
         session = self.sessions.get_or_create(channel, peer_id)
-
-        # --- pairing commands intercepted before normal flow ---
         stripped = message.strip().lower()
 
         if stripped == "pair":
@@ -48,7 +45,6 @@ class Runner:
                 self.audit.log(channel, peer_id, session.permission_tier,
                                 "pairing_approve", allowed=False)
                 return reply
-
             code = stripped.split("approve ", 1)[1].strip()
             info = self.pairing.approve(code)
             if not info:
@@ -62,56 +58,32 @@ class Runner:
             session.add_turn("user", message)
             session.add_turn("assistant", reply)
             return reply
-        # ---------------------------------------------------------
 
         context = self.context_builder.build(session, message)
-
-        # --- STUB: replace with real provider_router call ---
-        model_action = self._stub_model_action(message)
-        reply = self._execute_action(model_action, session, channel, peer_id)
-        # ------------------------------------------------------
+        reply = self._real_model_call(context, message)
 
         session.add_turn("user", message)
         session.add_turn("assistant", reply)
         return reply
 
-    def _stub_model_action(self, message: str) -> dict:
-        if "run shell" in message.lower():
-            return {"type": "tool_call", "tool": "shell_exec", "args": {"cmd": message}}
-        return {"type": "text", "content": f"echo: {message}"}
+    def _real_model_call(self, context: dict, message: str) -> str:
+        # build a single prompt string from the message list context builder made
+        full_prompt = "\n".join(
+            f"{m['role']}: {m['content']}" for m in context["messages"]
+        )
+        result = self.provider_router.generate(full_prompt)
 
-    def _execute_action(self, action: dict, session, channel: str, peer_id: str) -> str:
-        if action["type"] == "text":
-            return action["content"]
-
-        if action["type"] == "tool_call":
-            tool_name = action["tool"]
-            allowed = self.permissions.is_allowed(session.permission_tier, tool_name)
-            self.audit.log(channel, peer_id, session.permission_tier, tool_name, allowed)
-            if not allowed:
-                return self.permissions.denial_message(tool_name)
-            return f"[would execute tool: {tool_name}]"
-
-        return "Unrecognized action type."
+        if result["success"]:
+            return result["text"]
+        return f"[provider error: {result['error']}]"
 
 
 if __name__ == "__main__":
     runner = Runner(
-        base_system_prompt="You are SHRRI, Sd's personal AI assistant.",
+        base_system_prompt="You are SHRRI, Sd's personal AI assistant. Keep replies short.",
         main_peer_ids={"telegram": "TEST_MAIN_ID"},
         use_persistence=True,
     )
 
-    print("restricted sender requests pairing:")
-    reply = runner.handle_message("telegram", "STRANGER_1", "pair")
-    print(reply)
-    code = reply.split("Pairing code: ")[1].split(".")[0]
-
-    print("\nmain tier approves the code:")
-    print(runner.handle_message("telegram", "TEST_MAIN_ID", f"approve {code}"))
-
-    print("\nformerly-restricted sender now runs a tool:")
-    print(runner.handle_message("telegram", "STRANGER_1", "run shell whoami"))
-
-    print("\naudit log recent denials:")
-    print(runner.audit.recent_denials())
+    print("main tier, real model call:")
+    print(runner.handle_message("telegram", "TEST_MAIN_ID", "What is 2+2? Answer in one word."))

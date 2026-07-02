@@ -21,7 +21,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - 🔄 Notification Center (interface only — delivery pending Phase 15/16)
 
 ## Phase 3 — Provider Router
-- 🔄 Multi-provider routing (exists in old codebase — needs porting: multi_router.py, capability_map.py, free_models.py)
+- ✅ Multi-provider routing (wired into Runner via provider_router.py adapter)
 - ⏳ Local AI first (Ollama priority)
 - ⏳ Model Selection logic
 - ⏳ Provider Ranking
