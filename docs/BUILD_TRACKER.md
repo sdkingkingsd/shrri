@@ -17,8 +17,8 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Wake Word Engine (hey_jarvis placeholder — hey_shree custom training pending)
 - ✅ Speech To Text (Whisper.cpp, multilingual base model)
 - ✅ Language Detection Engine
-- ⏳ Conversation Controller
-- ⏳ Notification Center (Android app side)
+- ✅ Conversation Controller
+- 🔄 Notification Center (interface only — delivery pending Phase 15/16)
 
 ## Phase 3 — Provider Router
 - 🔄 Multi-provider routing (exists in old codebase — needs porting: multi_router.py, capability_map.py, free_models.py)
