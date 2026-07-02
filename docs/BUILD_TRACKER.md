@@ -23,7 +23,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 ## Phase 3 — Provider Router
 - ✅ Multi-provider routing (wired into Runner via provider_router.py adapter)
 - ✅ Local AI first (Ollama fallback confirmed working, qwen2.5:3b)
-- ⏳ Model Selection logic
+- ✅ Model Selection logic (tested — keyword classifier infers capability from raw prompt across 16 categories, 9/9 test cases pass, confirmed wired end-to-end through ProviderRouter)
 - ✅ Provider Ranking (tested — demotes failing provider after 1 failure, confirmed via stats file + reorder check)
 - ✅ Automatic Failover (tested — confirmed falls through on provider error)
 - ✅ Offline First mode (tested — local wins even when cloud provider has perfect track record, confirmed policy overrides ranking)

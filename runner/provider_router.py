@@ -21,6 +21,7 @@ if str(SHRRI_ROOT) not in sys.path:
     sys.path.insert(0, str(SHRRI_ROOT))
 
 from engine.multi_router import route as _route
+from runner.model_selector import classify as _classify
 
 
 class ProviderRouter:
@@ -29,7 +30,10 @@ class ProviderRouter:
         self.verbose = verbose
 
     def generate(self, prompt: str, capability: str | None = None) -> dict:
-        cap = capability or self.default_capability
+        # If caller didn't specify a capability, infer one from the prompt
+        # (Model Selection) instead of always falling back to the static
+        # default_capability. Explicit capability always wins when given.
+        cap = capability or _classify(prompt)
         result = _route(cap, prompt, verbose=self.verbose)
 
         if result["success"]:
