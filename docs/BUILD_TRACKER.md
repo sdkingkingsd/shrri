@@ -49,7 +49,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Planning Agent (this IS the Goal Planner from Phase 4 — a step-by-step task breakdown specialist is functionally the same as the planner already built; no separate agent needed, avoiding duplicate logic)
 - ✅ Memory Agent (tested — save_fact + recall via Memory singleton, confirmed end-to-end through Telegram /goal: a 'remember X' goal correctly saved a fact, a separate 'recall X' goal correctly retrieved it and answered from real stored memory, not generic knowledge)
 - ✅ Automation Agent (tested — routes to existing reminder_tool/scheduler.py, confirmed end-to-end through Telegram /goal: set a real one-shot reminder, listed real cron/at state including pre-existing automations, and delete tested; found+fixed a pre-existing bug along the way — telegram_notify.py was regex-scraping BOT_TOKEN/YOUR_ID from telegram_bot.py's source text, but that file only imports those values from shrri_config_local.py, so every cron/at-triggered reminder was silently failing to deliver; fixed by importing creds directly, same pattern telegram_bot.py itself uses)
-- ⏳ Security Agent
+- ✅ Security Agent (tested — thin wrapper around real PermissionEngine/AuditLogger/doctor.py, confirmed end-to-end through Telegram /goal: correctly reported restricted-tier vs main-only tools, correctly read real (empty) audit log for denials, and ran a live 12/12 system health check via doctor.py; also handled a combined multi-part question by having the planner split it into parallel security steps + a synthesis step on its own)
 - ⏳ Testing Agent
 - ⏳ Documentation Agent
 - ⏳ Linux Agent
