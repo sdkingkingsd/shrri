@@ -40,7 +40,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Router Adapter (tested — wraps live engine.router.Router behind ProviderRouter-compatible interface, GoalPlanner + ExecutionScheduler now run through the same engine as production WhatsApp bot, confirmed end-to-end with real haiku+translate workflow)
 
 ## Phase 5 — Multi Agent System
-- ⏳ Manager Agent
+- ✅ Manager Agent (tested — orchestrates GoalPlanner + ExecutionScheduler end-to-end, registers specialist agents via register_agent(), confirmed working with real multi-step goal through unified engine)
 - ⏳ Research Agent
 - ⏳ Coding Agent
 - ⏳ Browser Agent
