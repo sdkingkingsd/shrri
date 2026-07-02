@@ -25,7 +25,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ⏳ Local AI first (Ollama priority)
 - ⏳ Model Selection logic
 - ⏳ Provider Ranking
-- ⏳ Automatic Failover
+- ✅ Automatic Failover (tested — confirmed falls through on provider error)
 - ⏳ Offline First mode
 - ⏳ Hybrid Routing
 
