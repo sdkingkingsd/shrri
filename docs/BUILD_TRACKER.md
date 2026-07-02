@@ -14,7 +14,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ DM pairing flow (restricted -> main upgrade path)
 
 ## Phase 2 — Input Layer
-- ⏳ Wake Word Engine
+- ✅ Wake Word Engine (hey_jarvis placeholder — hey_shree custom training pending)
 - ✅ Speech To Text (Whisper.cpp, multilingual base model)
 - ✅ Language Detection Engine
 - ⏳ Conversation Controller
