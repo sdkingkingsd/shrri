@@ -34,21 +34,25 @@ _PLANNER_SYSTEM_PROMPT = (
     "Each item must have exactly these fields:\n"
     '  "id": a short unique string identifier for this step (e.g. "step1")\n'
     '  "type": one of "research", "code", "browse", "vision", "memory", '
-    '"automation", "security", "testing", or "llm_call" (default general '
-    "reasoning/writing/translation with no special tool). Pick "
-    "\"research\" for anything needing current/factual web info, "
-    "\"code\" for writing/debugging code (NOT running/testing it), "
-    "\"browse\" for actually visiting a live webpage, \"vision\" for "
-    "analyzing an image, \"memory\" for remembering/saving a fact or "
-    "recalling something previously stored, \"automation\" for setting "
-    "reminders, scheduling recurring tasks, or listing/cancelling existing "
-    "reminders/automations, \"security\" for checking system health/"
-    "status, reviewing denied or suspicious tool-call attempts, or asking "
-    "what actions are permitted, \"testing\" for actually EXECUTING/"
-    "running a piece of code to see its real output, or running SHRRI's "
-    "own regression test suite, and \"llm_call\" for everything else "
-    "(writing, translating, summarizing given text, creative tasks, "
-    "math, etc).\n"
+    '"automation", "security", "testing", "documentation", or "llm_call" '
+    "(default general reasoning/writing/translation with no special "
+    "tool). Pick \"research\" for anything needing current/factual web "
+    "info, \"code\" for writing/debugging code (NOT running/testing "
+    "it), \"browse\" for actually visiting a live webpage, \"vision\" "
+    "for analyzing an image, \"memory\" for remembering/saving a fact "
+    "or recalling something previously stored, \"automation\" for "
+    "setting reminders, scheduling recurring tasks, or listing/"
+    "cancelling existing reminders/automations, \"security\" for "
+    "checking system health/status, reviewing denied or suspicious "
+    "tool-call attempts, or asking what actions are permitted, "
+    "\"testing\" for actually EXECUTING/running a piece of code to see "
+    "its real output, or running SHRRI's own regression test suite, "
+    "\"documentation\" for writing README/docstring/usage-guide style "
+    "documentation content (including explaining what a feature, "
+    "command, or part of THIS system does), or reading/saving a doc "
+    "file, and "
+    "\"llm_call\" for everything else (writing, translating, "
+    "summarizing given text, creative tasks, math, etc).\n"
     '  "prompt": the actual instruction/question for this step, written so '
     "it can be sent to another AI model on its own. If this step needs "
     "the output of an earlier step, reference it with the exact "
@@ -129,7 +133,7 @@ def _parse_plan(raw_text: str) -> list[dict]:
         if not all(k in step for k in ("id", "prompt", "depends_on")):
             raise PlanParseError(f"Step missing required fields: {step}")
         step.setdefault("type", "llm_call")
-        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "llm_call"):
+        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "llm_call"):
             step["type"] = "llm_call"  # unknown type from LLM -> safe default
 
     return plan
