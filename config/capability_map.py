@@ -61,9 +61,10 @@ CAPABILITIES = {
 
     "translate": {
         "providers": [
-            ("nvidia", "nvidia/riva-translate-4b-instruct"),
             ("google", "gemini-2.5-flash"),
             ("nvidia", "sarvamai/sarvam-m"),
+            # nvidia/riva-translate-4b-instruct removed — confirmed dead
+            # (404 "Function not found for account", 3/3 test calls failed)
         ],
     },
 

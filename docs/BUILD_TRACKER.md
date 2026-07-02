@@ -30,7 +30,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Hybrid Routing (tested — local model triages prompt first, simple prompts answered local-only, complex prompts correctly escalate to cloud, confirmed both paths working end-to-end)
 
 ## Phase 4 — Workflow Engine
-- ⏳ Goal Planner
+- ✅ Goal Planner (tested — LLM decomposes goal into dependency-ordered JSON plan, parsed into WorkflowGraph, output-substitution placeholder bug found and fixed, full pipeline confirmed end-to-end with real provider calls; also found+fixed a dead nvidia/riva-translate-4b-instruct provider along the way)
 - ✅ Workflow Graph Builder (tested — diamond dependency graph A→B,A→C,B+C→D resolves correctly step by step, cycle detection confirmed on forced circular dependency)
 - ✅ Execution Scheduler (tested — dependency-ordered execution confirmed, mixed custom+LLM handlers work, checkpoint auto-cleans on success and persists on failure, stop-on-failure confirmed blocks downstream tasks)
 - ✅ Task Queue (tested — FIFO ordering, status lifecycle pending/running/done/failed, result/error tracking all confirmed)

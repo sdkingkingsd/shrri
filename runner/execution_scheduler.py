@@ -22,9 +22,21 @@ from runner.checkpoint_manager import CheckpointManager
 from runner.provider_router import ProviderRouter
 
 
-def _default_llm_handler(payload: dict, provider_router: ProviderRouter) -> str:
+def _default_llm_handler(payload: dict, provider_router: ProviderRouter, queue=None) -> str:
     prompt = payload.get("prompt", "")
     capability = payload.get("capability")  # None triggers Model Selection auto-detect
+
+    # Substitute {output_of_<step_id>} placeholders with the actual
+    # completed result of that dependency, if the Goal Planner attached
+    # a dep_task_ids mapping (step_id -> real task_id) to this payload.
+    dep_task_ids = payload.get("dep_task_ids")
+    if dep_task_ids and queue is not None:
+        for step_id, task_id in dep_task_ids.items():
+            dep_task = queue.get(task_id)
+            if dep_task and dep_task["status"] == "done":
+                placeholder = "{output_of_" + step_id + "}"
+                prompt = prompt.replace(placeholder, str(dep_task["result"]))
+
     result = provider_router.generate(prompt, capability=capability)
     if not result["success"]:
         raise RuntimeError(result.get("error", "unknown provider error"))
@@ -43,7 +55,7 @@ class ExecutionScheduler:
         self.verbose = verbose
 
         self.handlers = {
-            "llm_call": lambda payload: _default_llm_handler(payload, self.provider_router),
+            "llm_call": lambda payload: _default_llm_handler(payload, self.provider_router, self.graph.queue),
         }
         if handlers:
             self.handlers.update(handlers)
