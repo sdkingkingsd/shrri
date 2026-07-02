@@ -17,6 +17,7 @@ from runner.goal_planner import plan_goal
 from runner.execution_scheduler import ExecutionScheduler
 from runner.message_bus import MessageBus
 from runner.agent_runtime import AgentRuntime
+from runner.agents.supervisor_agent import SupervisorAgent
 from runner.checkpoint_manager import CheckpointManager
 import uuid
 
@@ -52,6 +53,8 @@ class ManagerAgent:
         graph, id_map = plan_goal(goal, verbose=self.verbose)
 
         bus = MessageBus(workflow_id)
+        supervisor = SupervisorAgent(bus, verbose=self.verbose)
+        supervisor.attach()
         runtime = AgentRuntime(self._agent_handlers, bus=bus, workflow_id=workflow_id)
         scheduler = ExecutionScheduler(
             graph,

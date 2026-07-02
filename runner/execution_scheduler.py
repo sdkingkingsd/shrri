@@ -113,17 +113,29 @@ class ExecutionScheduler:
                     self._checkpoint()
                     continue
 
-                try:
-                    result = handler(task["payload"])
-                    self.graph.queue.mark_done(task_id, result)
-                    self.bus.publish("task_done", {"task_id": task_id, "type": task["type"], "result": result})
-                    if self.verbose:
-                        print(f"[scheduler] Task {task_id} done.")
-                except Exception as e:
-                    self.graph.queue.mark_failed(task_id, str(e))
-                    self.bus.publish("task_failed", {"task_id": task_id, "type": task["type"], "error": str(e)})
-                    if self.verbose:
-                        print(f"[scheduler] Task {task_id} failed: {e}")
+                max_attempts = 2
+                last_error = None
+                succeeded = False
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        result = handler(task["payload"])
+                        self.graph.queue.mark_done(task_id, result)
+                        self.bus.publish("task_done", {"task_id": task_id, "type": task["type"], "result": result})
+                        if self.verbose:
+                            print(f"[scheduler] Task {task_id} done.")
+                        succeeded = True
+                        break
+                    except Exception as e:
+                        last_error = str(e)
+                        if attempt < max_attempts:
+                            self.bus.publish("task_retry", {"task_id": task_id, "type": task["type"], "attempt": attempt, "error": last_error})
+                            if self.verbose:
+                                print(f"[scheduler] Task {task_id} attempt {attempt} failed: {last_error} — retrying")
+                        else:
+                            self.graph.queue.mark_failed(task_id, last_error)
+                            self.bus.publish("task_failed", {"task_id": task_id, "type": task["type"], "error": last_error})
+                            if self.verbose:
+                                print(f"[scheduler] Task {task_id} failed after {attempt} attempts: {last_error}")
                 self._checkpoint()
 
                 if self.graph.has_failures():
