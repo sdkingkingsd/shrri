@@ -33,7 +33,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ⏳ Goal Planner
 - ⏳ Workflow Graph Builder
 - ⏳ Execution Scheduler
-- ⏳ Task Queue
+- ✅ Task Queue (tested — FIFO ordering, status lifecycle pending/running/done/failed, result/error tracking all confirmed)
 - ⏳ Checkpoint Manager
 
 ## Phase 5 — Multi Agent System
