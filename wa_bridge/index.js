@@ -8,6 +8,7 @@ const {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
+  downloadMediaMessage,
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode-terminal');
@@ -304,20 +305,39 @@ async function startSock() {
       if (!m.key.fromMe) console.log("[wa_bridge] Incoming message from", jid, ":", extractText(m.message));
       if (!m.key.fromMe && !jid.endsWith('@g.us') && !jid.endsWith('@newsletter') && m.message) {
         const text = extractText(m.message);
-        if (text) {
+        const hasImage = !!m.message.imageMessage;
+        if (text || hasImage) {
           const senderName = contactNames.get(jid) || m.pushName || jid;
-          try {
-            const http = require('http');
-            const body = JSON.stringify({ jid, name: senderName, text });
-            const req = http.request({
-              hostname: '127.0.0.1', port: 3002, path: '/incoming',
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
-            });
-            req.on('error', () => {}); // silently ignore if auto-reply server is down
-            req.write(body);
-            req.end();
-          } catch(e) {}
+          (async () => {
+            let imagePath = null;
+            if (hasImage) {
+              try {
+                const buffer = await downloadMediaMessage(m, 'buffer', {});
+                const fs = require('fs');
+                const path = require('path');
+                const dir = path.join(__dirname, 'incoming_media');
+                fs.mkdirSync(dir, { recursive: true });
+                const filename = `${Date.now()}_${m.key.id}.jpg`;
+                imagePath = path.join(dir, filename);
+                fs.writeFileSync(imagePath, buffer);
+                console.log(`[wa_bridge] Saved incoming image to ${imagePath}`);
+              } catch (e) {
+                console.error(`[wa_bridge] Failed to download incoming image:`, e.message);
+              }
+            }
+            try {
+              const http = require('http');
+              const body = JSON.stringify({ jid, name: senderName, text, image_path: imagePath });
+              const req = http.request({
+                hostname: '127.0.0.1', port: 3002, path: '/incoming',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+              });
+              req.on('error', () => {}); // silently ignore if auto-reply server is down
+              req.write(body);
+              req.end();
+            } catch(e) {}
+          })();
         }
       }
     }

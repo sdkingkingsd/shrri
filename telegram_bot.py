@@ -1,6 +1,9 @@
 import os, sys, asyncio, logging
 sys.path.insert(0, os.path.expanduser("~/shrri"))
-from shrri_config import BOT_TOKEN, YOUR_ID
+try:
+    from shrri_config_local import BOT_TOKEN, YOUR_ID
+except ImportError:
+    from shrri_config import BOT_TOKEN, YOUR_ID
 
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -77,6 +80,27 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             _os.remove(ogg_path)
         except Exception:
             pass
+    # Photo message handler — send to Vision Agent for analysis
+    if not user_msg and update.message.photo:
+        await update.message.reply_text("\U0001F440 Looking at the image...")
+        photo_file = await update.message.photo[-1].get_file()  # highest resolution
+        import tempfile, os as _os
+        img_path = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False, dir="/tmp").name
+        await photo_file.download_to_drive(img_path)
+        caption = update.message.caption or "Describe what you see in this image."
+        from runner.agents.vision_agent import VisionAgent
+        vision = VisionAgent(verbose=True)
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(None, lambda: vision.run({"prompt": caption, "image_path": img_path}))
+        except Exception as e:
+            result = f"GAP: vision agent failed — {e}"
+        try:
+            _os.remove(img_path)
+        except Exception:
+            pass
+        await update.message.reply_text(result[:4000])
+        return
         if not user_msg:
             await update.message.reply_text("GAP: could not understand the voice message.")
             return

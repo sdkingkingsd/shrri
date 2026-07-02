@@ -158,7 +158,7 @@ def _send_summary(jid, name, history):
     except Exception as e:
         print(f"[auto] Summary failed: {e}")
 
-def _handle_incoming(jid, name, text):
+def _handle_incoming(jid, name, text, image_path=None):
     if not auto_mode_on():
         return
     with _lock:
@@ -167,15 +167,23 @@ def _handle_incoming(jid, name, text):
         state = _convos[jid]
         if state["timer"]:
             state["timer"].cancel()
-        state["history"].append({"role": name, "content": text})
-
+        state["history"].append({"role": name, "content": text or "[sent an image]"})
     if _is_urgent(text, state["history"]):
         _send_telegram(
             f"🚨 <b>Urgent message from {name}!</b>\n\n\"{text}\"\n\n"
             f"<i>SHRRI is auto-replying but you may want to step in.</i>"
         )
-
-    reply = _generate_reply(name, text, state["history"])
+    if image_path:
+        try:
+            from runner.agents.vision_agent import VisionAgent
+            vision = VisionAgent(verbose=True)
+            vision_prompt = text if text else "Describe what you see in this image, and react to it naturally as Shrridharshan would in a WhatsApp chat."
+            reply = vision.run({"prompt": vision_prompt, "image_path": image_path})
+        except Exception as e:
+            print(f"[auto] Vision reply failed: {e}")
+            reply = _generate_reply(name, text or "[sent an image]", state["history"])
+    else:
+        reply = _generate_reply(name, text, state["history"])
     if reply:
         try:
             _send_whatsapp(jid, reply)
@@ -206,7 +214,7 @@ class Handler(BaseHTTPRequestHandler):
             body   = json.loads(self.rfile.read(length))
             threading.Thread(
                 target=_handle_incoming,
-                args=(body["jid"], body["name"], body["text"]),
+                args=(body["jid"], body["name"], body["text"], body.get("image_path")),
                 daemon=True
             ).start()
             self.send_response(200)
