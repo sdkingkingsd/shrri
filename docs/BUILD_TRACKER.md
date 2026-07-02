@@ -9,9 +9,9 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Session Manager
 - ✅ Context Builder
 - ✅ Policy & Permission Engine (real tool-level enforcement)
-- ⏳ Session persistence (survive restart)
-- ⏳ Audit logging (log denied/allowed tool calls)
-- ⏳ DM pairing flow (restricted -> main upgrade path)
+- ✅ Session persistence (survive restart)
+- ✅ Audit logging (log denied/allowed tool calls)
+- ✅ DM pairing flow (restricted -> main upgrade path)
 
 ## Phase 2 — Input Layer
 - ⏳ Wake Word Engine
