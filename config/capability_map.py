@@ -12,7 +12,7 @@ CAPABILITIES = {
             ("google", "gemini-2.5-flash"),
             ("nara", "claude-haiku-4.5"),
             ("cerebras", "gpt-oss-120b"),
-            ("local", "qwen3:8b"),
+            ("local", "qwen2.5:3b"),
         ],
     },
 
@@ -21,7 +21,7 @@ CAPABILITIES = {
             ("nvidia", "nvidia/llama-3.3-nemotron-super-49b-v1"),
             ("cerebras", "gpt-oss-120b"),
             ("google", "gemini-2.5-flash"),
-            ("local", "qwen3:8b"),
+            ("local", "qwen2.5:3b"),
         ],
     },
 
