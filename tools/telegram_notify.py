@@ -6,14 +6,14 @@ import sys, os, re
 sys.path.insert(0, os.path.expanduser("~/shrri"))
 
 def _load_creds():
-    path = os.path.expanduser("~/shrri/telegram_bot.py")
-    with open(path) as f:
-        content = f.read()
-    token = re.search(r'BOT_TOKEN\s*=\s*["\']([^"\']+)["\']', content)
-    uid = re.search(r'YOUR_ID\s*=\s*(\d+)', content)
-    if not token or not uid:
-        raise ValueError("BOT_TOKEN or YOUR_ID not found in telegram_bot.py")
-    return token.group(1), int(uid.group(1))
+    # Same local-over-fallback pattern as telegram_bot.py itself — import
+    # directly instead of regex-scraping telegram_bot.py's source (which
+    # never actually defines these values; it imports them too).
+    try:
+        from shrri_config_local import BOT_TOKEN, YOUR_ID
+    except ImportError:
+        from shrri_config import BOT_TOKEN, YOUR_ID
+    return BOT_TOKEN, YOUR_ID
 
 def send_reminder(task: str) -> bool:
     """Send a reminder with snooze buttons."""
