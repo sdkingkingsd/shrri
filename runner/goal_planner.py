@@ -34,7 +34,7 @@ _PLANNER_SYSTEM_PROMPT = (
     "Each item must have exactly these fields:\n"
     '  "id": a short unique string identifier for this step (e.g. "step1")\n'
     '  "type": one of "research", "code", "browse", "vision", "memory", '
-    '"automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", or '
+    '"automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", "finance", or '
     '"llm_call" '
     "(default general reasoning/writing/translation with no special "
     "tool). Pick \"research\" for anything needing current/factual web "
@@ -65,7 +65,9 @@ _PLANNER_SYSTEM_PROMPT = (
     "creating, updating, deleting, or searching Google Calendar "
     "events, or joining an upcoming Meet, \"email\" for reading, "
     "searching, sending, replying to, archiving, deleting Gmail "
-    "messages, saving drafts, or downloading attachments, and "
+    "messages, saving drafts, or downloading attachments, \"finance\" "
+    "for checking a stock, index (NIFTY/SENSEX), crypto, or gold "
+    "price via real market data, and "
     "\"llm_call\" for everything else (writing, translating, "
     "summarizing given text, creative tasks, math, etc).\n"
     '  "prompt": the actual instruction/question for this step, written so '
@@ -148,7 +150,7 @@ def _parse_plan(raw_text: str) -> list[dict]:
         if not all(k in step for k in ("id", "prompt", "depends_on")):
             raise PlanParseError(f"Step missing required fields: {step}")
         step.setdefault("type", "llm_call")
-        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", "llm_call"):
+        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", "finance", "llm_call"):
             step["type"] = "llm_call"  # unknown type from LLM -> safe default
 
     return plan
