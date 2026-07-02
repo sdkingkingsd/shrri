@@ -41,7 +41,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 
 ## Phase 5 — Multi Agent System
 - ✅ Manager Agent (tested — orchestrates GoalPlanner + ExecutionScheduler end-to-end, registers specialist agents via register_agent(), confirmed working with real multi-step goal through unified engine)
-- ⏳ Research Agent
+- ✅ Research Agent (tested — confirmed real web search context injection via Router, cited live sources with timestamps for a current-price question, survived a tool dispatcher error + provider timeouts via existing failover)
 - ⏳ Coding Agent
 - ⏳ Browser Agent
 - ⏳ Vision Agent
