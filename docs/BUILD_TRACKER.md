@@ -24,7 +24,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Multi-provider routing (wired into Runner via provider_router.py adapter)
 - ✅ Local AI first (Ollama fallback confirmed working, qwen2.5:3b)
 - ⏳ Model Selection logic
-- ⏳ Provider Ranking
+- ✅ Provider Ranking (tested — demotes failing provider after 1 failure, confirmed via stats file + reorder check)
 - ✅ Automatic Failover (tested — confirmed falls through on provider error)
 - ⏳ Offline First mode
 - ⏳ Hybrid Routing
