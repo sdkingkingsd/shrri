@@ -34,7 +34,8 @@ _PLANNER_SYSTEM_PROMPT = (
     "Each item must have exactly these fields:\n"
     '  "id": a short unique string identifier for this step (e.g. "step1")\n'
     '  "type": one of "research", "code", "browse", "vision", "memory", '
-    '"automation", "security", "testing", "documentation", or "llm_call" '
+    '"automation", "security", "testing", "documentation", "linux", or '
+    '"llm_call" '
     "(default general reasoning/writing/translation with no special "
     "tool). Pick \"research\" for anything needing current/factual web "
     "info, \"code\" for writing/debugging code (NOT running/testing "
@@ -50,7 +51,12 @@ _PLANNER_SYSTEM_PROMPT = (
     "\"documentation\" for writing README/docstring/usage-guide style "
     "documentation content (including explaining what a feature, "
     "command, or part of THIS system does), or reading/saving a doc "
-    "file, and "
+    "file, \"linux\" for controlling THIS laptop directly RIGHT NOW "
+    "— locking the screen, shutdown/restart (now, delayed, or "
+    "cancelled), setting/changing volume, or brightness (use "
+    "\"linux\" for these, NOT \"automation\" — \"automation\" is "
+    "only for reminders and recurring scheduled tasks, never "
+    "immediate one-time system control), and "
     "\"llm_call\" for everything else (writing, translating, "
     "summarizing given text, creative tasks, math, etc).\n"
     '  "prompt": the actual instruction/question for this step, written so '
@@ -133,7 +139,7 @@ def _parse_plan(raw_text: str) -> list[dict]:
         if not all(k in step for k in ("id", "prompt", "depends_on")):
             raise PlanParseError(f"Step missing required fields: {step}")
         step.setdefault("type", "llm_call")
-        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "llm_call"):
+        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "linux", "llm_call"):
             step["type"] = "llm_call"  # unknown type from LLM -> safe default
 
     return plan

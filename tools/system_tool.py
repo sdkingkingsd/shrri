@@ -48,7 +48,7 @@ def system_control(message: str) -> str:
             return "✅ Shutdown/restart cancelled."
 
         # Volume
-        m3 = re.search(r"volume\s+(\d+)", msg)
+        m3 = re.search(r"volume\s+(?:to|at)?\s*(\d+)", msg)
         if m3:
             vol = min(100, int(m3.group(1)))
             subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{vol}%"])
@@ -64,7 +64,7 @@ def system_control(message: str) -> str:
             return "🔉 Volume decreased."
 
         # Brightness
-        m4 = re.search(r"brightness\s+(\d+)", msg)
+        m4 = re.search(r"brightness\s+(?:to|at)?\s*(\d+)", msg)
         if m4:
             val = min(100, int(m4.group(1)))
             subprocess.run(["brightnessctl", "set", f"{val}%"],
