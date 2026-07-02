@@ -47,7 +47,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Browser Agent (tested — real Playwright browsing confirmed against example.com, correctly extracted actual page heading, not a hallucinated guess)
 - ✅ Vision Agent (tested — added real image support to GoogleProvider + NvidiaProvider via chat_with_image(), confirmed both correctly identify a test image's shape/color, built-in failover between vision providers); ALSO wired to real messaging channels: added chat_with_image() to GoogleProvider+NvidiaProvider, added WhatsApp image download support in wa_bridge (Baileys downloadMediaMessage), added Telegram photo handler — confirmed end-to-end with a real Telegram photo (detailed comic page correctly described, including transcribing Tamil script); found+fixed two unrelated live bugs along the way: Telegram bot was crash-looping for hours on a placeholder token (config import pointed to the wrong file), and YOUR_ID mismatch was silently blocking all messages)
 - ✅ Planning Agent (this IS the Goal Planner from Phase 4 — a step-by-step task breakdown specialist is functionally the same as the planner already built; no separate agent needed, avoiding duplicate logic)
-- ⏳ Memory Agent
+- ✅ Memory Agent (tested — save_fact + recall via Memory singleton, confirmed end-to-end through Telegram /goal: a 'remember X' goal correctly saved a fact, a separate 'recall X' goal correctly retrieved it and answered from real stored memory, not generic knowledge)
 - ⏳ Automation Agent
 - ⏳ Security Agent
 - ⏳ Testing Agent

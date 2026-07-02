@@ -33,6 +33,14 @@ _PLANNER_SYSTEM_PROMPT = (
     "Respond with ONLY a JSON array, no prose, no markdown code fences. "
     "Each item must have exactly these fields:\n"
     '  "id": a short unique string identifier for this step (e.g. "step1")\n'
+    '  "type": one of "research", "code", "browse", "vision", "memory", '
+    'or "llm_call" (default general reasoning/writing/translation with no '
+    "special tool). Pick \"research\" for anything needing current/factual "
+    "web info, \"code\" for writing/debugging code, \"browse\" for actually "
+    "visiting a live webpage, \"vision\" for analyzing an image, \"memory\" "
+    "for remembering/saving a fact or recalling something previously "
+    "stored, and \"llm_call\" for everything else (writing, translating, "
+    "summarizing given text, creative tasks, math, etc).\n"
     '  "prompt": the actual instruction/question for this step, written so '
     "it can be sent to another AI model on its own. If this step needs "
     "the output of an earlier step, reference it with the exact "
@@ -41,8 +49,8 @@ _PLANNER_SYSTEM_PROMPT = (
     '  "depends_on": a list of "id" strings for steps that must complete '
     "before this one can start (empty list if none)\n\n"
     "Example output:\n"
-    '[{"id": "step1", "prompt": "Research X", "depends_on": []}, '
-    '{"id": "step2", "prompt": "Write a summary of the research", "depends_on": ["step1"]}]'
+    '[{"id": "step1", "type": "research", "prompt": "Research X", "depends_on": []}, '
+    '{"id": "step2", "type": "llm_call", "prompt": "Write a summary of the research", "depends_on": ["step1"]}]'
 )
 
 
@@ -62,12 +70,49 @@ def _extract_json_array(text: str) -> str:
     raise PlanParseError(f"No JSON array found in planner output: {text[:200]!r}")
 
 
+def _repair_truncated_json_array(json_str: str) -> str:
+    """Best-effort repair for an array cut off mid-generation: closes
+    any dangling string/object/array so json.loads has a chance."""
+    s = json_str.rstrip()
+    in_string = False
+    escape = False
+    depth_stack = []
+    for ch in s:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "[{":
+            depth_stack.append(ch)
+        elif ch in "]}":
+            if depth_stack:
+                depth_stack.pop()
+    if in_string:
+        s += '"'
+    # Drop a trailing dangling comma/partial-key fragment if present
+    s = re.sub(r",\s*$", "", s)
+    for opener in reversed(depth_stack):
+        s += "]" if opener == "[" else "}"
+    return s
+
+
 def _parse_plan(raw_text: str) -> list[dict]:
     json_str = _extract_json_array(raw_text)
     try:
         plan = json.loads(json_str)
     except json.JSONDecodeError as e:
-        raise PlanParseError(f"Planner output was not valid JSON: {e}")
+        repaired = _repair_truncated_json_array(json_str)
+        try:
+            plan = json.loads(repaired)
+        except json.JSONDecodeError:
+            raise PlanParseError(f"Planner output was not valid JSON: {e}")
 
     if not isinstance(plan, list) or len(plan) == 0:
         raise PlanParseError("Planner output must be a non-empty JSON array")
@@ -75,6 +120,9 @@ def _parse_plan(raw_text: str) -> list[dict]:
     for step in plan:
         if not all(k in step for k in ("id", "prompt", "depends_on")):
             raise PlanParseError(f"Step missing required fields: {step}")
+        step.setdefault("type", "llm_call")
+        if step["type"] not in ("research", "code", "browse", "vision", "memory", "llm_call"):
+            step["type"] = "llm_call"  # unknown type from LLM -> safe default
 
     return plan
 
@@ -105,7 +153,7 @@ def plan_to_graph(plan: list[dict]) -> tuple[WorkflowGraph, dict]:
                 # in this step's prompt with the actual completed result.
                 dep_task_ids = {d: id_map[d] for d in deps}
                 task_id = graph.add_task(
-                    "llm_call",
+                    step.get("type", "llm_call"),
                     {"prompt": step["prompt"], "dep_task_ids": dep_task_ids},
                     depends_on=real_deps,
                 )
@@ -127,7 +175,7 @@ def plan_goal(goal: str, provider_router: ProviderRouter | None = None, verbose:
     Full pipeline: raw goal -> LLM plan -> parsed -> WorkflowGraph.
     Raises PlanParseError or CycleError on bad output.
     """
-    router = provider_router or ProviderRouter()
+    router = provider_router or ProviderRouter(web_search=False)
     full_prompt = f"{_PLANNER_SYSTEM_PROMPT}\n\nUser goal: {goal}"
     result = router.generate(full_prompt)
 

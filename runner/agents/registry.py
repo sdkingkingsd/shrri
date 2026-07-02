@@ -12,6 +12,7 @@ from runner.agents.research_agent import ResearchAgent
 from runner.agents.coding_agent import CodingAgent
 from runner.agents.browser_agent import BrowserAgent
 from runner.agents.vision_agent import VisionAgent
+from runner.agents.memory_agent import MemoryAgent
 
 
 def build_manager(verbose: bool = False) -> ManagerAgent:
@@ -21,6 +22,7 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     coding = CodingAgent(verbose=verbose)
     browser = BrowserAgent(verbose=verbose)
     vision = VisionAgent(verbose=verbose)
+    memory = MemoryAgent(verbose=verbose)
 
     manager.register_agent("research", research.run)
     manager.register_agent("code", coding.run)
@@ -28,6 +30,9 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     manager.register_agent("browse", browser.run)
     manager.register_agent("browser", browser.run)
     manager.register_agent("vision", vision.run)
+    manager.register_agent("memory", memory.run)
+    manager.register_agent("remember", memory.run)  # accept both names
+    manager.register_agent("recall", memory.run)
     # "llm_call" (default, used by GoalPlanner for plain steps) already
     # has a built-in handler in ExecutionScheduler — no registration needed.
 
