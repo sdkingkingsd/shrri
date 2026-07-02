@@ -34,7 +34,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ⏳ Workflow Graph Builder
 - ⏳ Execution Scheduler
 - ✅ Task Queue (tested — FIFO ordering, status lifecycle pending/running/done/failed, result/error tracking all confirmed)
-- ⏳ Checkpoint Manager
+- ✅ Checkpoint Manager (tested — state survives simulated restart via fresh SQLite connection, task statuses preserved, delete cleans up correctly)
 
 ## Phase 5 — Multi Agent System
 - ⏳ Manager Agent
