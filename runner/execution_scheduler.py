@@ -49,13 +49,14 @@ class ExecutionScheduler:
                  checkpoint_manager: CheckpointManager | None = None,
                  provider_router: ProviderRouter | None = None,
                  handlers: dict | None = None, verbose: bool = False,
-                 bus: MessageBus | None = None):
+                 bus: MessageBus | None = None, runtime=None):
         self.graph = graph
         self.workflow_id = workflow_id
         self.checkpoints = checkpoint_manager or CheckpointManager()
         self.provider_router = provider_router or ProviderRouter(web_search=False)
         self.verbose = verbose
         self.bus = bus or MessageBus(workflow_id)
+        self.runtime = runtime
 
         self.handlers = {
             "llm_call": lambda payload: _default_llm_handler(payload, self.provider_router, self.graph.queue),
@@ -71,6 +72,7 @@ class ExecutionScheduler:
             if isinstance(t2.get("payload"), dict):
                 payload2 = dict(t2["payload"])
                 payload2.pop("bus", None)
+                payload2.pop("runtime", None)
                 t2["payload"] = payload2
             safe_tasks.append(t2)
         state = {"tasks": safe_tasks}
@@ -103,6 +105,7 @@ class ExecutionScheduler:
                 self.bus.publish("task_start", {"task_id": task_id, "type": task["type"]})
                 task["payload"]["bus"] = self.bus
                 task["payload"]["workflow_id"] = self.workflow_id
+                task["payload"]["runtime"] = self.runtime
 
                 handler = self.handlers.get(task["type"])
                 if handler is None:
