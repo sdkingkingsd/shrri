@@ -30,3 +30,4 @@ piper_voices/*.wav
 *.sh
 PyWhatKit_DB.txt
 patches/
+wa_bridge/auth/
