@@ -26,7 +26,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ⏳ Model Selection logic
 - ✅ Provider Ranking (tested — demotes failing provider after 1 failure, confirmed via stats file + reorder check)
 - ✅ Automatic Failover (tested — confirmed falls through on provider error)
-- ⏳ Offline First mode
+- ✅ Offline First mode (tested — local wins even when cloud provider has perfect track record, confirmed policy overrides ranking)
 - ⏳ Hybrid Routing
 
 ## Phase 4 — Workflow Engine

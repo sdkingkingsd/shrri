@@ -133,6 +133,23 @@ CAPABILITIES = {
 }
 
 
+OFFLINE_FIRST = False
+
+
+def set_offline_first(enabled: bool):
+    """Toggle Offline First policy — when True, local providers are
+    always tried before any cloud provider, regardless of ranking
+    scores. This is a policy override on top of Provider Ranking,
+    not a replacement for it."""
+    global OFFLINE_FIRST
+    OFFLINE_FIRST = enabled
+
+
 def get_candidates(capability: str):
     entry = CAPABILITIES.get(capability, CAPABILITIES["conversation"])
-    return entry["providers"]
+    providers = entry["providers"]
+    if not OFFLINE_FIRST:
+        return providers
+    local = [p for p in providers if p[0] == "local"]
+    cloud = [p for p in providers if p[0] != "local"]
+    return local + cloud

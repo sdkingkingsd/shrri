@@ -61,12 +61,25 @@ class ProviderRanking:
         success_rate = entry["successes"] / total
         return success_rate
 
-    def rank_candidates(self, candidates: list[tuple]) -> list[tuple]:
+    def _rank_group(self, group: list[tuple]) -> list[tuple]:
+        scored = [(self._score(p, m), i, (p, m)) for i, (p, m) in enumerate(group)]
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        return [c for _, _, c in scored]
+
+    def rank_candidates(self, candidates: list[tuple], offline_first: bool = False) -> list[tuple]:
         """
         candidates: list of (provider, model) tuples in original static order.
-        Returns re-ordered list — higher success rate first, ties broken
-        by keeping original relative order (stable sort).
+        Returns re-ordered list — higher success rate first within each
+        group, ties broken by keeping original relative order (stable sort).
+
+        When offline_first is True, ranks local and cloud candidates as
+        two separate groups (local group always first) so a healthy
+        cloud provider's success rate can never bump it ahead of local
+        — offline_first is a hard policy, not just a scoring input.
         """
-        scored = [(self._score(p, m), i, (p, m)) for i, (p, m) in enumerate(candidates)]
-        scored.sort(key=lambda x: (-x[0], x[1]))  # score desc, original index asc for ties
-        return [c for _, _, c in scored]
+        if not offline_first:
+            return self._rank_group(candidates)
+
+        local = [c for c in candidates if c[0] == "local"]
+        cloud = [c for c in candidates if c[0] != "local"]
+        return self._rank_group(local) + self._rank_group(cloud)

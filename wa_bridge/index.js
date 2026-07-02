@@ -495,6 +495,14 @@ function shutdown(signal) {
   flushRecentMessages();
   setTimeout(() => process.exit(0), 1500);
 }
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[wa_bridge] Unhandled rejection (non-fatal, continuing):', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[wa_bridge] Uncaught exception (non-fatal, continuing):', err);
+});
+
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 

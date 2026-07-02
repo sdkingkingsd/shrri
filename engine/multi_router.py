@@ -2,6 +2,7 @@
 from engine.key_manager import KeyManager
 from engine.provider_registry import registry
 from config.capability_map import get_candidates
+import config.capability_map as cm
 
 km = KeyManager()
 
@@ -13,7 +14,7 @@ _ranking = ProviderRanking()
 
 def route(capability: str, prompt: str, verbose=False):
     candidates = get_candidates(capability)
-    candidates = _ranking.rank_candidates(candidates)
+    candidates = _ranking.rank_candidates(candidates, offline_first=cm.OFFLINE_FIRST)
     last_error = None
 
     for provider_name, model in candidates:
