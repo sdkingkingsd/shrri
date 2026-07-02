@@ -34,7 +34,7 @@ _PLANNER_SYSTEM_PROMPT = (
     "Each item must have exactly these fields:\n"
     '  "id": a short unique string identifier for this step (e.g. "step1")\n'
     '  "type": one of "research", "code", "browse", "vision", "memory", '
-    '"automation", "security", "testing", "documentation", "linux", "android", or '
+    '"automation", "security", "testing", "documentation", "linux", "android", "github", or '
     '"llm_call" '
     "(default general reasoning/writing/translation with no special "
     "tool). Pick \"research\" for anything needing current/factual web "
@@ -59,7 +59,9 @@ _PLANNER_SYSTEM_PROMPT = (
     "immediate one-time system control), \"android\" for controlling "
     "or checking a PAIRED ANDROID PHONE via adb — listing connected "
     "devices, battery status, screenshot, installing/uninstalling an "
-    "APK, or listing installed apps, and "
+    "APK, or listing installed apps, \"github\" for local git status/"
+    "diff/commit/push on the SHRRI repo, or listing/creating GitHub "
+    "issues and pull requests via gh, and "
     "\"llm_call\" for everything else (writing, translating, "
     "summarizing given text, creative tasks, math, etc).\n"
     '  "prompt": the actual instruction/question for this step, written so '
@@ -142,7 +144,7 @@ def _parse_plan(raw_text: str) -> list[dict]:
         if not all(k in step for k in ("id", "prompt", "depends_on")):
             raise PlanParseError(f"Step missing required fields: {step}")
         step.setdefault("type", "llm_call")
-        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "linux", "android", "llm_call"):
+        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "linux", "android", "github", "llm_call"):
             step["type"] = "llm_call"  # unknown type from LLM -> safe default
 
     return plan
