@@ -76,6 +76,34 @@ class NvidiaProvider:
         )
         return response.choices[0].message.content
 
+    def chat_with_image(self, message, model, image_base64, mime_type="image/jpeg", system=None):
+        """
+        Vision variant — same OpenAI-compatible image_url format as
+        GoogleProvider.chat_with_image(). NVIDIA's vision-capable
+        models (e.g. meta/llama-3.2-11b-vision-instruct) accept this
+        same message shape.
+        """
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": message},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}
+                },
+            ],
+        })
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=4096,
+            timeout=30
+        )
+        return response.choices[0].message.content
+
 
 class OllamaProvider:
     def __init__(self, base_url):
@@ -182,6 +210,34 @@ class GoogleProvider:
         if history:
             messages.extend(history)
         messages.append({"role": "user", "content": message})
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=4096,
+            timeout=30
+        )
+        return response.choices[0].message.content
+
+    def chat_with_image(self, message, model, image_base64, mime_type="image/jpeg", system=None):
+        """
+        Vision variant — sends a base64-encoded image alongside the text
+        prompt, using the standard OpenAI vision message format (this
+        endpoint is OpenAI-compatible, so the same format works here).
+        """
+        model = model.replace("models/", "")
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": message},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}
+                },
+            ],
+        })
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
