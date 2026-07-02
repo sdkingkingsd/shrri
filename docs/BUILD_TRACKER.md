@@ -61,7 +61,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ IoT Agent (tested — no IoT/smart-home integration existed anywhere and no MQTT broker or devices are configured; installed real paho-mqtt and built the agent around it directly (publish on/off/toggle commands, subscribe for device status), honestly reporting 'No MQTT broker configured' with real setup instructions rather than pretending to control a nonexistent device — confirmed end-to-end through Telegram /goal; ready to control real devices the moment MQTT_BROKER_HOST is added to shrri_config_local.py, same pattern as BOT_TOKEN/YOUR_ID)
 
 ## Phase 6 — Conversation Broker
-- ⏳ Agent Communication / Message Bus
+- ✅ Agent Communication / Message Bus (tested — new MessageBus (runner/message_bus.py) is a thread-safe in-process pub/sub scoped per workflow_id, with subscribe(topic, cb), publish(topic, payload), history()/latest(); wired into ExecutionScheduler so every workflow auto-publishes workflow_start/task_start/task_done/task_failed/workflow_done, and every handler payload gets bus + workflow_id injected for free — zero changes needed to any of the 18 existing Phase 5 agents; ManagerAgent creates the bus and returns it in run_goal()'s result; found+fixed one real bug during testing — the live bus object was leaking into checkpoint JSON via task payload and crashing json.dumps, fixed by sanitizing a copy in _checkpoint() only, leaving the live payload untouched for handlers; confirmed end-to-end with a real single-step goal — all 4 event types fired in correct order with correct payloads)
 - ⏳ Consensus Engine
 - ⏳ Negotiation Engine
 - ⏳ Shared Context

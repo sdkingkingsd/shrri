@@ -19,6 +19,7 @@ correctness we can no longer guarantee.
 
 from runner.workflow_graph import WorkflowGraph
 from runner.checkpoint_manager import CheckpointManager
+from runner.message_bus import MessageBus
 from runner.router_adapter import RouterAdapter as ProviderRouter
 
 
@@ -47,12 +48,14 @@ class ExecutionScheduler:
     def __init__(self, graph: WorkflowGraph, workflow_id: str,
                  checkpoint_manager: CheckpointManager | None = None,
                  provider_router: ProviderRouter | None = None,
-                 handlers: dict | None = None, verbose: bool = False):
+                 handlers: dict | None = None, verbose: bool = False,
+                 bus: MessageBus | None = None):
         self.graph = graph
         self.workflow_id = workflow_id
         self.checkpoints = checkpoint_manager or CheckpointManager()
         self.provider_router = provider_router or ProviderRouter(web_search=False)
         self.verbose = verbose
+        self.bus = bus or MessageBus(workflow_id)
 
         self.handlers = {
             "llm_call": lambda payload: _default_llm_handler(payload, self.provider_router, self.graph.queue),
@@ -61,7 +64,16 @@ class ExecutionScheduler:
             self.handlers.update(handlers)
 
     def _checkpoint(self):
-        state = {"tasks": self.graph.queue.all_tasks()}
+        tasks = self.graph.queue.all_tasks()
+        safe_tasks = []
+        for t in tasks:
+            t2 = dict(t)
+            if isinstance(t2.get("payload"), dict):
+                payload2 = dict(t2["payload"])
+                payload2.pop("bus", None)
+                t2["payload"] = payload2
+            safe_tasks.append(t2)
+        state = {"tasks": safe_tasks}
         self.checkpoints.save(self.workflow_id, state)
 
     def run(self) -> dict:
@@ -71,6 +83,7 @@ class ExecutionScheduler:
         """
         if self.verbose:
             print(f"[scheduler] Starting workflow {self.workflow_id}")
+        self.bus.publish("workflow_start", {"workflow_id": self.workflow_id})
 
         while not self.graph.is_complete():
             ready = self.graph.ready_tasks()
@@ -87,6 +100,9 @@ class ExecutionScheduler:
 
                 if self.verbose:
                     print(f"[scheduler] Running task {task_id} ({task['type']})")
+                self.bus.publish("task_start", {"task_id": task_id, "type": task["type"]})
+                task["payload"]["bus"] = self.bus
+                task["payload"]["workflow_id"] = self.workflow_id
 
                 handler = self.handlers.get(task["type"])
                 if handler is None:
@@ -97,10 +113,12 @@ class ExecutionScheduler:
                 try:
                     result = handler(task["payload"])
                     self.graph.queue.mark_done(task_id, result)
+                    self.bus.publish("task_done", {"task_id": task_id, "type": task["type"], "result": result})
                     if self.verbose:
                         print(f"[scheduler] Task {task_id} done.")
                 except Exception as e:
                     self.graph.queue.mark_failed(task_id, str(e))
+                    self.bus.publish("task_failed", {"task_id": task_id, "type": task["type"], "error": str(e)})
                     if self.verbose:
                         print(f"[scheduler] Task {task_id} failed: {e}")
                 self._checkpoint()
@@ -115,6 +133,7 @@ class ExecutionScheduler:
 
         completed = self.graph.is_complete() and not self.graph.has_failures()
         failed = self.graph.has_failures()
+        self.bus.publish("workflow_done", {"workflow_id": self.workflow_id, "completed": completed, "failed": failed})
 
         if completed:
             # Clean up — no need to keep a checkpoint for a finished workflow

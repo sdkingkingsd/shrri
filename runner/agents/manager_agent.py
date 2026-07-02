@@ -15,6 +15,7 @@ incrementally without editing this file each time.
 
 from runner.goal_planner import plan_goal
 from runner.execution_scheduler import ExecutionScheduler
+from runner.message_bus import MessageBus
 from runner.checkpoint_manager import CheckpointManager
 import uuid
 
@@ -49,12 +50,14 @@ class ManagerAgent:
 
         graph, id_map = plan_goal(goal, verbose=self.verbose)
 
+        bus = MessageBus(workflow_id)
         scheduler = ExecutionScheduler(
             graph,
             workflow_id=workflow_id,
             checkpoint_manager=self.checkpoints,
             handlers=self._agent_handlers,
             verbose=self.verbose,
+            bus=bus,
         )
 
         if self.verbose:
@@ -62,4 +65,5 @@ class ManagerAgent:
 
         result = scheduler.run()
         result["workflow_id"] = workflow_id
+        result["bus"] = bus
         return result
