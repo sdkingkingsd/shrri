@@ -36,6 +36,9 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Task Queue (tested — FIFO ordering, status lifecycle pending/running/done/failed, result/error tracking all confirmed)
 - ✅ Checkpoint Manager (tested — state survives simulated restart via fresh SQLite connection, task statuses preserved, delete cleans up correctly)
 
+## Phase 4.5 — Engine Unification
+- ✅ Router Adapter (tested — wraps live engine.router.Router behind ProviderRouter-compatible interface, GoalPlanner + ExecutionScheduler now run through the same engine as production WhatsApp bot, confirmed end-to-end with real haiku+translate workflow)
+
 ## Phase 5 — Multi Agent System
 - ⏳ Manager Agent
 - ⏳ Research Agent

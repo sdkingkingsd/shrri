@@ -19,7 +19,7 @@ correctness we can no longer guarantee.
 
 from runner.workflow_graph import WorkflowGraph
 from runner.checkpoint_manager import CheckpointManager
-from runner.provider_router import ProviderRouter
+from runner.router_adapter import RouterAdapter as ProviderRouter
 
 
 def _default_llm_handler(payload: dict, provider_router: ProviderRouter, queue=None) -> str:

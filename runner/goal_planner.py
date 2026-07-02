@@ -22,7 +22,7 @@ doesn't force multi-step plans where one step suffices.
 import json
 import re
 
-from runner.provider_router import ProviderRouter
+from runner.router_adapter import RouterAdapter as ProviderRouter
 from runner.workflow_graph import WorkflowGraph, CycleError
 
 _PLANNER_SYSTEM_PROMPT = (
