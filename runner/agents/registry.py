@@ -18,6 +18,7 @@ from runner.agents.security_agent import SecurityAgent
 from runner.agents.testing_agent import TestingAgent
 from runner.agents.documentation_agent import DocumentationAgent
 from runner.agents.linux_agent import LinuxAgent
+from runner.agents.android_agent import AndroidAgent
 
 
 def build_manager(verbose: bool = False) -> ManagerAgent:
@@ -33,6 +34,7 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     testing = TestingAgent(verbose=verbose)
     documentation = DocumentationAgent(verbose=verbose)
     linux = LinuxAgent(verbose=verbose)
+    android = AndroidAgent(verbose=verbose)
 
     manager.register_agent("research", research.run)
     manager.register_agent("code", coding.run)
@@ -53,6 +55,7 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     manager.register_agent("docs", documentation.run)  # accept both names
     manager.register_agent("linux", linux.run)
     manager.register_agent("system", linux.run)  # accept both names
+    manager.register_agent("android", android.run)
     # "llm_call" (default, used by GoalPlanner for plain steps) already
     # has a built-in handler in ExecutionScheduler — no registration needed.
 
