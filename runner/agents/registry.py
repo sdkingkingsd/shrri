@@ -21,6 +21,7 @@ from runner.agents.linux_agent import LinuxAgent
 from runner.agents.android_agent import AndroidAgent
 from runner.agents.github_agent import GitHubAgent
 from runner.agents.calendar_agent import CalendarAgent
+from runner.agents.email_agent import EmailAgent
 
 
 def build_manager(verbose: bool = False) -> ManagerAgent:
@@ -39,6 +40,7 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     android = AndroidAgent(verbose=verbose)
     github = GitHubAgent(verbose=verbose)
     calendar = CalendarAgent(verbose=verbose)
+    email = EmailAgent(verbose=verbose)
 
     manager.register_agent("research", research.run)
     manager.register_agent("code", coding.run)
@@ -62,6 +64,8 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     manager.register_agent("android", android.run)
     manager.register_agent("github", github.run)
     manager.register_agent("calendar", calendar.run)
+    manager.register_agent("email", email.run)
+    manager.register_agent("gmail", email.run)  # accept both names
     # "llm_call" (default, used by GoalPlanner for plain steps) already
     # has a built-in handler in ExecutionScheduler — no registration needed.
 
