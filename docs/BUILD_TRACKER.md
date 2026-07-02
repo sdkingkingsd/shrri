@@ -1,0 +1,180 @@
+# SHRRI AI OS v2 — Build Tracker
+
+Master checklist from the full architecture doc. Update status as we go.
+Legend: ✅ done | 🔄 in progress | ⏳ not started
+
+---
+
+## Phase 1 — SHRRI Runner (spine)
+- ✅ Session Manager
+- ✅ Context Builder
+- ✅ Policy & Permission Engine (real tool-level enforcement)
+- ⏳ Session persistence (survive restart)
+- ⏳ Audit logging (log denied/allowed tool calls)
+- ⏳ DM pairing flow (restricted -> main upgrade path)
+
+## Phase 2 — Input Layer
+- ⏳ Wake Word Engine
+- ⏳ Speech To Text (Whisper.cpp)
+- ⏳ Language Detection Engine
+- ⏳ Conversation Controller
+- ⏳ Notification Center (Android app side)
+
+## Phase 3 — Provider Router
+- 🔄 Multi-provider routing (exists in old codebase — needs porting: multi_router.py, capability_map.py, free_models.py)
+- ⏳ Local AI first (Ollama priority)
+- ⏳ Model Selection logic
+- ⏳ Provider Ranking
+- ⏳ Automatic Failover
+- ⏳ Offline First mode
+- ⏳ Hybrid Routing
+
+## Phase 4 — Workflow Engine
+- ⏳ Goal Planner
+- ⏳ Workflow Graph Builder
+- ⏳ Execution Scheduler
+- ⏳ Task Queue
+- ⏳ Checkpoint Manager
+
+## Phase 5 — Multi Agent System
+- ⏳ Manager Agent
+- ⏳ Research Agent
+- ⏳ Coding Agent
+- ⏳ Browser Agent
+- ⏳ Vision Agent
+- ⏳ Planning Agent
+- ⏳ Memory Agent
+- ⏳ Automation Agent
+- ⏳ Security Agent
+- ⏳ Testing Agent
+- ⏳ Documentation Agent
+- ⏳ Linux Agent
+- ⏳ Android Agent
+- ⏳ GitHub Agent
+- ⏳ Calendar Agent
+- ⏳ Email Agent
+- ⏳ Finance Agent
+- ⏳ IoT Agent
+
+## Phase 6 — Conversation Broker
+- ⏳ Agent Communication / Message Bus
+- ⏳ Consensus Engine
+- ⏳ Negotiation Engine
+- ⏳ Shared Context
+- ⏳ Dynamic Agent Creation
+
+## Phase 7 — Tool Ecosystem
+- ✅ Gmail (read, send, search — existing)
+- ✅ Google Calendar (create, list, upcoming — existing)
+- ✅ WhatsApp (Baileys bridge — existing)
+- ✅ Telegram (full bot — existing)
+- ✅ Math tool (deterministic AST-safe — existing)
+- ⏳ MCP (standard protocol, not custom mcp_client.py)
+- ⏳ GitHub tool
+- ⏳ Python/Shell/Linux exec (sandboxed)
+- ⏳ ADB (Android)
+- ⏳ Playwright (browser automation)
+- ⏳ SQLite tool
+- ⏳ Files tool
+- ⏳ Weather tool
+- ⏳ Maps tool
+- ⏳ IoT tool
+
+## Phase 8 — Computer Use Engine
+- ⏳ Desktop Controller
+- ⏳ Browser Controller
+- ⏳ Mouse/Keyboard Controller
+- ⏳ Clipboard
+- ⏳ Window Manager
+- ⏳ OCR (route to cloud vision — CPU-only risk flagged)
+- ⏳ Vision / Screen Understanding (route to cloud vision)
+- ⏳ Verification Engine
+- ⏳ Recovery Engine
+
+## Phase 9 — Memory System
+- ✅ Long-term memory (RAG + FTS5 — existing)
+- ✅ Background consolidation (dream_cycle.py, curator.py, weekly_consolidator.py — existing)
+- ⏳ Working Memory (in-session, separate from long-term)
+- ⏳ Short-term Memory formalized
+- ⏳ Semantic Memory / Episodic Memory split
+- ⏳ Experience Memory
+- ⏳ Vector Database (proper, not just FTS5)
+- ⏳ Memory Ranking
+- ⏳ Memory Compression
+- ⏳ Memory Forgetting
+- ⏳ Memory Timeline (browsable UI)
+- ⏳ Daily session log persistence
+
+## Phase 10 — Reasoning System
+- 🔄 Reasoning Engine (reasoning.py exists, needs upgrade)
+- ⏳ Reflection Engine
+- ⏳ Self Critic
+- ⏳ Verifier
+- ⏳ Confidence Scoring
+- ⏳ ReAct pattern
+- ⏳ Tree Search (future/stretch)
+
+## Phase 11 — Learning Engine
+- ⏳ Experience Replay
+- ⏳ Skill Generator
+- ⏳ Skill Evolution
+- ⏳ Workflow Recorder
+- ⏳ Dream Mode (extends existing dream_cycle.py)
+- ⏳ AI DNA
+- ⏳ Memory Optimizer
+- ⏳ Prompt Optimizer
+- ⏳ Self Benchmark
+
+## Phase 12 — Evaluation System
+- ⏳ Benchmarks
+- ⏳ Tracing
+- ⏳ Metrics
+- ⏳ Prompt Versions
+- ⏳ Experiments
+- ⏳ Latency tracking
+- ⏳ Model Comparison
+- ⏳ Dashboard
+
+## Phase 13 — Security System
+- ✅ Permission Engine (Phase 1, done)
+- ⏳ Sandbox (Docker/isolated exec)
+- ⏳ Secrets Manager
+- ⏳ Encryption
+- ⏳ Authentication
+- ⏳ Authorization (beyond basic tier)
+- ⏳ Policy Engine (broader than tool gating)
+- ⏳ Audit Logs
+
+## Phase 14 — Plugin System
+- ⏳ Plugin SDK
+- ⏳ Extension SDK
+- ⏳ Marketplace
+- ⏳ Auto Discovery
+- ⏳ Plugin Registry
+
+## Phase 15 — Device Abstraction Layer
+- ⏳ Device API (unified)
+- ⏳ Linux Backend
+- ⏳ Android Backend
+- ⏳ Future Windows Backend
+- ⏳ Future macOS Backend
+
+## Phase 16 — Output Layer
+- ✅ Text (Telegram/WhatsApp — existing)
+- 🔄 Voice (Piper TTS — existing, needs Tamil-script prompt fix)
+- ⏳ Desktop Notification
+- ⏳ Android Notification
+- ⏳ API Response format
+- ⏳ Dashboard
+- ⏳ Logs (structured)
+
+---
+
+## Notes
+- CPU-only laptop (Ryzen 5 5500U, 16GB RAM) — Vision/OCR/Computer-Use should route
+  through cloud providers (Gemini/Groq vision), not local inference. Flagged risk,
+  not a blocker.
+- Existing SHRRI v1 code to port (not rebuild from scratch): multi_router.py,
+  capability_map.py, free_models.py, memory.py, dream_cycle.py, curator.py,
+  weekly_consolidator.py, math_tool.py, Gmail/Calendar/WhatsApp/Telegram integrations.
+- Update this file's status markers as each item ships. Commit it with the code.
