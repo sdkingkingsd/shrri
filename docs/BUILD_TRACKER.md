@@ -40,12 +40,13 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Router Adapter (tested — wraps live engine.router.Router behind ProviderRouter-compatible interface, GoalPlanner + ExecutionScheduler now run through the same engine as production WhatsApp bot, confirmed end-to-end with real haiku+translate workflow)
 
 ## Phase 5 — Multi Agent System
+- ✅ Agent Registry + Telegram /goal command (tested — full ManagerAgent/GoalPlanner/ExecutionScheduler pipeline now triggerable live from Telegram, confirmed end-to-end with real multi-step haiku+translate goal through Telegram chat, logs show all 5 agents registered + planner + scheduler firing correctly)
 - ✅ Manager Agent (tested — orchestrates GoalPlanner + ExecutionScheduler end-to-end, registers specialist agents via register_agent(), confirmed working with real multi-step goal through unified engine)
 - ✅ Research Agent (tested — confirmed real web search context injection via Router, cited live sources with timestamps for a current-price question, survived a tool dispatcher error + provider timeouts via existing failover)
 - ✅ Coding Agent (tested — routes through coding capability list, confirmed working code output; noted the LLM's own example didn't match its code's actual behavior — a model accuracy issue, not an agent bug)
 - ✅ Browser Agent (tested — real Playwright browsing confirmed against example.com, correctly extracted actual page heading, not a hallucinated guess)
 - ✅ Vision Agent (tested — added real image support to GoogleProvider + NvidiaProvider via chat_with_image(), confirmed both correctly identify a test image's shape/color, built-in failover between vision providers); ALSO wired to real messaging channels: added chat_with_image() to GoogleProvider+NvidiaProvider, added WhatsApp image download support in wa_bridge (Baileys downloadMediaMessage), added Telegram photo handler — confirmed end-to-end with a real Telegram photo (detailed comic page correctly described, including transcribing Tamil script); found+fixed two unrelated live bugs along the way: Telegram bot was crash-looping for hours on a placeholder token (config import pointed to the wrong file), and YOUR_ID mismatch was silently blocking all messages)
-- ⏳ Planning Agent
+- ✅ Planning Agent (this IS the Goal Planner from Phase 4 — a step-by-step task breakdown specialist is functionally the same as the planner already built; no separate agent needed, avoiding duplicate logic)
 - ⏳ Memory Agent
 - ⏳ Automation Agent
 - ⏳ Security Agent

@@ -160,6 +160,24 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             response = "Usage: /restorebackup <backup_filename>|||<target_path>"
         else:
             response = restore_backup(parts[0].strip(), parts[1].strip())
+    elif user_msg.strip().startswith("/goal "):
+        goal_text = user_msg.strip()[len("/goal "):].strip()
+        loop = asyncio.get_event_loop()
+        def _run_goal():
+            from runner.agents.registry import build_manager
+            manager = build_manager(verbose=True)
+            result = manager.run_goal(goal_text)
+            if result["completed"]:
+                # Return the last completed task's result as the summary reply
+                done_tasks = [t for t in result["tasks"] if t["status"] == "done"]
+                if done_tasks:
+                    return str(done_tasks[-1]["result"])
+                return "Goal completed but produced no output."
+            else:
+                failed = [t for t in result["tasks"] if t["status"] == "failed"]
+                errs = "; ".join(t["error"] for t in failed) if failed else "unknown error"
+                return f"GAP: goal failed — {errs}"
+        response = await loop.run_in_executor(None, _run_goal)
     elif user_msg.strip().startswith("/edit "):
         instruction = user_msg.strip()[len("/edit "):].strip()
         response = propose_edit(instruction, engine.router if hasattr(engine, "router") else engine)
