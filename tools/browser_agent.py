@@ -13,10 +13,14 @@ def browse_agent(task: str) -> str:
     from engine.router import Router
 
     url_match = re.search(r"https?://\S+", task)
-    if not url_match:
-        return "❌ No URL found in task."
-
-    url = url_match.group()
+    if url_match:
+        url = url_match.group()
+    else:
+        # Fall back to a bare domain like "example.com" or "www.example.com"
+        bare_match = re.search(r"\b((?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})\b", task)
+        if not bare_match:
+            return "❌ No URL found in task."
+        url = "https://" + bare_match.group()
     content = browser_action("open", url=url)
 
     if content.startswith("Browser error"):

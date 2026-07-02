@@ -51,7 +51,7 @@ class ExecutionScheduler:
         self.graph = graph
         self.workflow_id = workflow_id
         self.checkpoints = checkpoint_manager or CheckpointManager()
-        self.provider_router = provider_router or ProviderRouter()
+        self.provider_router = provider_router or ProviderRouter(web_search=False)
         self.verbose = verbose
 
         self.handlers = {
