@@ -33,7 +33,7 @@ _PLANNER_SYSTEM_PROMPT = (
     "Respond with ONLY a JSON array, no prose, no markdown code fences. "
     "Each item must have exactly these fields:\n"
     '  "id": a short unique string identifier for this step (e.g. "step1")\n'
-    '  "type": one of "research", "code", "browse", "vision", "memory", '
+    '  "type": one of "research", "code", "browse", "vision", "memory", "consensus", '
     '"automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", "finance", "iot", or '
     '"llm_call" '
     "(default general reasoning/writing/translation with no special "
@@ -68,7 +68,7 @@ _PLANNER_SYSTEM_PROMPT = (
     "messages, saving drafts, or downloading attachments, \"finance\" "
     "for checking a stock, index (NIFTY/SENSEX), crypto, or gold "
     "price via real market data, \"iot\" for turning a smart-home "
-    "device on/off/toggle or checking its status over MQTT, and "
+    "device on/off/toggle or checking its status over MQTT, \"consensus\" for running the same question through multiple agents and picking the best answer — use when you want to compare answers from different agents, and "
     "\"llm_call\" for everything else (writing, translating, "
     "summarizing given text, creative tasks, math, etc).\n"
     '  "prompt": the actual instruction/question for this step, written so '
@@ -133,7 +133,7 @@ def _repair_truncated_json_array(json_str: str) -> str:
     return s
 
 
-def _parse_plan(raw_text: str) -> list[dict]:
+def _parse_plan(raw_text: str, dynamic_types: list[str] | None = None) -> list[dict]:
     json_str = _extract_json_array(raw_text)
     try:
         plan = json.loads(json_str)
@@ -151,8 +151,9 @@ def _parse_plan(raw_text: str) -> list[dict]:
         if not all(k in step for k in ("id", "prompt", "depends_on")):
             raise PlanParseError(f"Step missing required fields: {step}")
         step.setdefault("type", "llm_call")
-        if step["type"] not in ("research", "code", "browse", "vision", "memory", "automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", "finance", "iot", "llm_call"):
-            step["type"] = "llm_call"  # unknown type from LLM -> safe default
+        known = ("research", "code", "browse", "vision", "memory", "consensus", "automation", "security", "testing", "documentation", "linux", "android", "github", "calendar", "email", "finance", "iot", "llm_call")
+        if step["type"] not in known and not (dynamic_types and step["type"] in dynamic_types):
+            step["type"] = "llm_call"
 
     return plan
 
@@ -200,13 +201,16 @@ def plan_to_graph(plan: list[dict]) -> tuple[WorkflowGraph, dict]:
     return graph, id_map
 
 
-def plan_goal(goal: str, provider_router: ProviderRouter | None = None, verbose: bool = False) -> tuple[WorkflowGraph, dict]:
+def plan_goal(goal: str, provider_router: ProviderRouter | None = None, verbose: bool = False, dynamic_types: list[str] | None = None) -> tuple[WorkflowGraph, dict]:
     """
     Full pipeline: raw goal -> LLM plan -> parsed -> WorkflowGraph.
     Raises PlanParseError or CycleError on bad output.
     """
     router = provider_router or ProviderRouter(web_search=False)
-    full_prompt = f"{_PLANNER_SYSTEM_PROMPT}\n\nUser goal: {goal}"
+    extra = ""
+    if dynamic_types:
+        extra = "\n\nAdditionally, these custom agent types are registered and should be used when the goal matches: " + ", ".join(f'"{t}"' for t in dynamic_types) + ". Use them as the \"type\" field instead of \"llm_call\" when relevant."
+    full_prompt = f"{_PLANNER_SYSTEM_PROMPT}{extra}\n\nUser goal: {goal}"
     result = router.generate(full_prompt)
 
     if not result["success"]:
@@ -215,7 +219,7 @@ def plan_goal(goal: str, provider_router: ProviderRouter | None = None, verbose:
     if verbose:
         print(f"[goal_planner] Raw planner output: {result['text']!r}")
 
-    plan = _parse_plan(result["text"])
+    plan = _parse_plan(result["text"], dynamic_types=dynamic_types)
 
     if verbose:
         print(f"[goal_planner] Parsed plan with {len(plan)} step(s)")

@@ -24,6 +24,12 @@ from runner.agents.calendar_agent import CalendarAgent
 from runner.agents.email_agent import EmailAgent
 from runner.agents.finance_agent import FinanceAgent
 from runner.agents.iot_agent import IoTAgent
+from runner.agents.consensus_agent import ConsensusAgent
+from runner.agents.weather_agent import WeatherAgent
+from runner.agents.maps_agent import MapsAgent
+from runner.agents.files_agent import FilesAgent
+from runner.agents.sqlite_agent import SQLiteAgent
+from runner.agents.mcp_agent import MCPAgent
 
 
 def build_manager(verbose: bool = False) -> ManagerAgent:
@@ -45,6 +51,12 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     email = EmailAgent(verbose=verbose)
     finance = FinanceAgent(verbose=verbose)
     iot = IoTAgent(verbose=verbose)
+    consensus = ConsensusAgent(verbose=verbose)
+    weather = WeatherAgent(verbose=verbose)
+    maps = MapsAgent(verbose=verbose)
+    files = FilesAgent(verbose=verbose)
+    sqlite = SQLiteAgent(verbose=verbose)
+    mcp = MCPAgent(verbose=verbose)
 
     manager.register_agent("research", research.run)
     manager.register_agent("code", coding.run)
@@ -72,7 +84,19 @@ def build_manager(verbose: bool = False) -> ManagerAgent:
     manager.register_agent("gmail", email.run)  # accept both names
     manager.register_agent("finance", finance.run)
     manager.register_agent("iot", iot.run)
+    manager.register_agent("consensus", consensus.run)
+    manager.register_agent("weather", weather.run)
+    manager.register_agent("maps", maps.run)
+    manager.register_agent("files", files.run)
+    manager.register_agent("file", files.run)
+    manager.register_agent("sqlite", sqlite.run)
+    manager.register_agent("db", sqlite.run)
+    manager.register_agent("mcp", mcp.run)
     # "llm_call" (default, used by GoalPlanner for plain steps) already
     # has a built-in handler in ExecutionScheduler — no registration needed.
 
+    from runner.dynamic_agent_factory import load_dynamic_agents
+    loaded = load_dynamic_agents(manager)
+    if loaded:
+        print(f"[registry] auto-loaded {loaded} dynamic agent(s)")
     return manager

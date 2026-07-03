@@ -20,6 +20,7 @@ Intent routing (checked in order):
 
 import re
 import subprocess
+from tools.github_tool import github_query
 
 _REPO_DIR = "/home/shrridharshan/shrri"
 
@@ -46,7 +47,9 @@ class GitHubAgent:
         if self.verbose:
             print(f"[github_agent] Handling: {prompt[:80]!r}")
 
-        # Local repo status / diff
+        return github_query(prompt)
+
+        # Local repo status / diff (kept for reference, unreachable)
         if re.search(r"\b(status|changes|what.?s changed|uncommitted)\b", low):
             code, out = _run(["git", "status", "--short", "--branch"])
             return out.strip() or "No changes — working tree clean."

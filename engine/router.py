@@ -14,14 +14,14 @@ from .providers import (
 )
 from config.capability_map import get_candidates
 
-PROVIDER_PRIORITY = ["groq", "cerebras", "nvidia", "ollama"]
+PROVIDER_PRIORITY = ["groq", "cerebras", "ollama"]
 
 TASK_ROUTING = {
     "fast":     ["groq", "cerebras", "ollama"],
-    "long":     ["nvidia", "groq", "ollama"],
-    "code":     ["nvidia", "groq", "cerebras", "ollama"],
-    "reason":   ["nvidia", "groq", "ollama"],
-    "default":  ["groq", "cerebras", "nvidia", "ollama"],
+    "long":     ["groq", "ollama"],
+    "code":     ["groq", "cerebras", "ollama"],
+    "reason":   ["groq", "ollama"],
+    "default":  ["groq", "cerebras", "ollama"],
 }
 
 
@@ -150,6 +150,14 @@ class Router:
             base_url = self.km.get_base_url("nara")
             return NaraProvider(api_key, base_url)
         return None
+
+    def generate(self, prompt: str, capability: str = "reasoning") -> dict:
+        """Thin wrapper used by ConsensusEngine.llm_judge."""
+        try:
+            result = self.chat(prompt, capability=capability)
+            return {"success": True, "text": result}
+        except Exception as e:
+            return {"success": False, "text": str(e)}
 
     def chat(self, message, task="default", history=None, system=None, web_search=True, capability=None):
         if capability:

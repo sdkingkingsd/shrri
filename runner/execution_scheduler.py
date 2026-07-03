@@ -21,6 +21,7 @@ from runner.workflow_graph import WorkflowGraph
 from runner.checkpoint_manager import CheckpointManager
 from runner.message_bus import MessageBus
 from runner.scratchpad import Scratchpad
+from runner.shared_context import SharedContext
 from runner.router_adapter import RouterAdapter as ProviderRouter
 
 
@@ -50,7 +51,7 @@ class ExecutionScheduler:
                  checkpoint_manager: CheckpointManager | None = None,
                  provider_router: ProviderRouter | None = None,
                  handlers: dict | None = None, verbose: bool = False,
-                 bus: MessageBus | None = None, runtime=None, scratchpad=None):
+                 bus: MessageBus | None = None, runtime=None, scratchpad=None, shared_context=None):
         self.graph = graph
         self.workflow_id = workflow_id
         self.checkpoints = checkpoint_manager or CheckpointManager()
@@ -59,6 +60,7 @@ class ExecutionScheduler:
         self.bus = bus or MessageBus(workflow_id)
         self.runtime = runtime
         self.scratchpad = scratchpad or Scratchpad(workflow_id)
+        self.shared_context = shared_context or SharedContext()
 
         self.handlers = {
             "llm_call": lambda payload: _default_llm_handler(payload, self.provider_router, self.graph.queue),
@@ -76,6 +78,7 @@ class ExecutionScheduler:
                 payload2.pop("bus", None)
                 payload2.pop("runtime", None)
                 payload2.pop("scratchpad", None)
+                payload2.pop("shared_context", None)
                 t2["payload"] = payload2
             safe_tasks.append(t2)
         state = {"tasks": safe_tasks}
@@ -110,6 +113,7 @@ class ExecutionScheduler:
                 task["payload"]["workflow_id"] = self.workflow_id
                 task["payload"]["runtime"] = self.runtime
                 task["payload"]["scratchpad"] = self.scratchpad
+                task["payload"]["shared_context"] = self.shared_context
 
                 handler = self.handlers.get(task["type"])
                 if handler is None:

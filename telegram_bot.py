@@ -165,8 +165,100 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         loop = asyncio.get_event_loop()
         def _run_goal():
             from runner.agents.registry import build_manager
+            from runner.consensus_engine import ConsensusEngine
+            from runner.negotiation_engine import NegotiationEngine
             try:
                 manager = build_manager(verbose=True)
+                import re as _re
+                # Create agent shortcut
+                _dam = _re.search(r'create\s+agent:\s*(\w+)\s+that\s+(.+)', goal_text, _re.I)
+                if _dam:
+                    from runner.dynamic_agent_factory import DynamicAgentFactory
+                    from engine.router import Router as _DRouter
+                    _dag_router = _DRouter()
+                    _daf = DynamicAgentFactory(_dag_router, manager)
+                    return _daf.create(_dam.group(1).strip(), _dam.group(2).strip())
+                # Negotiation shortcut
+                _nm = _re.search(r'negotiate\s+(?:to\s+)?(?:answer|discuss|debate)?\s*:?\s*(.+)', goal_text, _re.I)
+                if _nm:
+                    _nq = _nm.group(1).strip()
+                    _nruntime = __import__('runner.agent_runtime', fromlist=['AgentRuntime']).AgentRuntime(manager._agent_handlers)
+                    from engine.router import Router as _Router
+                    _nrouter = _Router()
+                    _ne = NegotiationEngine(_nruntime, provider_router=_nrouter)
+                    return _ne.run(_nq, agents=["research", "memory"], max_rounds=2)
+                # Maps shortcut
+                _mapm = _re.match(r"maps?\s*:?\s*(.+)", goal_text, _re.I | _re.S)
+                if _mapm:
+                    from tools.maps_tool import maps_query
+                    return maps_query(_mapm.group(1).strip())
+
+                # GitHub shortcut
+                _ghm = _re.match(r"(?:github|git)\s*:?\s*(.+)", goal_text, _re.I | _re.S)
+                if _ghm:
+                    from tools.github_tool import github_query
+                    return github_query(_ghm.group(1).strip())
+
+                # Python/Shell exec shortcut
+                _pym = _re.match(r"(?:python|exec|shell)\s*:?\s*(.+)", goal_text, _re.I | _re.S)
+                if _pym:
+                    _code = _pym.group(1).strip()
+                    import re as _re3
+                    _code = _re3.sub(r"^[`]{3}[a-z]*\n?", "", _code)
+                    _code = _re3.sub(r"\n?[`]{3}$", "", _code)
+                    from tools.code_sandbox import run_code
+                    return run_code(_code)
+
+                # MCP shortcut — bypass planner, go directly to mcp agent
+                _mcpm = _re.match(r"mcp\s*:?\s*(.+)", goal_text, _re.I | _re.S)
+                if _mcpm:
+                    _mcp_prompt = _mcpm.group(1).strip()
+                    from engine.mcp.mcp_client import list_tools_sync, call_tool_sync
+                    import re as _re2
+                    if _re2.search(r"^(list tools|list all tools|available tools|what tools|show tools)", _mcp_prompt, _re2.I):
+                        _tools = list_tools_sync()
+                        if not _tools:
+                            return "No MCP servers connected."
+                        _lines = ["MCP tools (" + str(len(_tools)) + "):"]
+                        for _t in _tools:
+                            _lines.append("  [" + _t["server"] + "] " + _t["name"] + " - " + _t["description"])
+                        return "\n".join(_lines)
+                    _m2 = _re2.match(r"(\w+):(\w+)\s*(.*)", _mcp_prompt, _re2.DOTALL)
+                    if _m2:
+                        _srv = _m2.group(1)
+                        _tool = _m2.group(2)
+                        _args_str = _m2.group(3).strip()
+                        _arguments = {}
+                        for _kv in _re2.findall(r"(\w+)=(\"[^\"]*\"|\S+)", _args_str):
+                            _arguments[_kv[0]] = _kv[1].strip('"')
+                        return call_tool_sync(_srv, _tool, _arguments)
+                    return "MCP usage: /goal mcp: server:tool key=value"
+
+                # Files shortcut — bypass planner, go directly to files agent
+                _fm = _re.search(r'files?\s*:?\s*(.+)', goal_text, _re.I)
+                if _fm:
+                    _fq = _fm.group(1).strip()
+                    from tools.file_tool import file_search, open_file
+                    if "open" in _fq.lower():
+                        return open_file(_fq)
+                    return file_search(_fq)
+
+                # Weather shortcut — bypass planner, go directly to weather agent
+                _wm = _re.search(r'weather\s*:?\s*(?:in\s+|for\s+|at\s+)?(.+)', goal_text, _re.I)
+                if _wm:
+                    _loc = _wm.group(1).strip()
+                    from tools.weather_tool import get_weather
+                    return get_weather(_loc)
+
+                # Consensus shortcut — bypass planner if goal explicitly requests consensus
+                _cm = _re.search(r'consensus\s+(?:to\s+)?(?:answer|compare|pick)?\s*:?\s*(.+)', goal_text, _re.I)
+                if _cm:
+                    _q = _cm.group(1).strip()
+                    _runtime = __import__('runner.agent_runtime', fromlist=['AgentRuntime']).AgentRuntime(manager._agent_handlers)
+                    from engine.router import Router
+                    _router = Router()
+                    _ce = ConsensusEngine(_runtime, provider_router=_router)
+                    return _ce.run("consensus", {"prompt": _q}, agents=["research", "memory"], strategy="llm_judge")
                 result = manager.run_goal(goal_text)
             except Exception as e:
                 return f"GAP: goal pipeline crashed before finishing — {type(e).__name__}: {e}"

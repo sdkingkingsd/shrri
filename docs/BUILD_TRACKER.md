@@ -65,10 +65,10 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Agent Communication — AgentRuntime (tested — new AgentRuntime (runner/agent_runtime.py) wraps ManagerAgent's existing handlers dict directly (single source of truth, no separate registry), exposing call_agent(task_type, payload) so any agent handler can synchronously invoke another registered agent mid-task; publishes agent_call_start/agent_call_done/agent_call_failed on the same workflow MessageBus so nested calls are visible in history; injected into every task payload via ExecutionScheduler alongside bus/workflow_id, with the same checkpoint-sanitize fix applied proactively since AgentRuntime isn't JSON-serializable either; confirmed end-to-end with a real orchestrator agent calling the real Memory agent mid-task — nested call actually executed, actually saved a fact, and both agent_call_start/agent_call_done fired correctly around it in bus history)
 - ✅ Retry + SupervisorAgent (tested — ExecutionScheduler now retries a failed task once (max_attempts=2) before giving up, publishing task_retry on the bus for the first failure and task_failed only after both attempts are exhausted, so transient errors self-heal instead of killing the whole workflow; confirmed with a flaky handler that fails once then succeeds — workflow completed=True, call_count=2 — and a permanently-broken handler — correctly still ends failed=True after 2 attempts; new SupervisorAgent (runner/agents/supervisor_agent.py) subscribes to task_failed on every workflow's bus (auto-attached in ManagerAgent.run_goal) and sends an immediate Telegram alert via tools/telegram_notify.send_message with workflow id, step type, and error — confirmed end-to-end with a real failing task: alert actually arrived on Telegram the moment the task failed, not just at the end of the run)
 - ✅ Scratchpad (tested — new Scratchpad (runner/scratchpad.py) is a thread-safe shared key-value store scoped per workflow_id, with get/set/all/delete; injected into every task payload via ExecutionScheduler alongside bus/runtime/workflow_id (same checkpoint-sanitize treatment since it's not JSON-serializable), and created/exposed by ManagerAgent.run_goal() same as bus/runtime; confirmed end-to-end with two independent tasks (no depends_on link between them) — one wrote 'found_city: Tokyo' to the scratchpad, the other read it back correctly, proving shared state works even without a direct dependency edge, unlike {output_of_<step_id>} substitution which only sees the direct dependency chain; also confirmed checkpointing still works cleanly with scratchpad present, no serialization crash)
-- ⏳ Consensus Engine
-- ⏳ Negotiation Engine
-- ⏳ Shared Context
-- ⏳ Dynamic Agent Creation
+- ✅ Consensus Engine (tested — ConsensusEngine (runner/consensus_engine.py) fans out same task to multiple specialist agents and picks best answer via configurable strategy; strategies: majority (fuzzy match voting), longest (most detailed response), first (fast fallback), llm_judge (groq/cerebras picks best answer from all responses); wired into Telegram via /goal consensus keyword shortcut in telegram_bot.py — bypasses GoalPlanner entirely since planner was too weak to route consensus correctly; restricted fan-out to ['research', 'memory'] agents for text questions (avoids browser/vision/coding noise); removed dead nvidia provider from all priority lists in router.py + capability_map.py (8 keys all timing out, ~160s wasted per call); added generate() wrapper to Router for llm_judge compatibility; confirmed end-to-end through Telegram /goal — both agents ran, judge picked winner, reply in under 30s with no nvidia timeouts)
+- ✅ Negotiation Engine (tested — NegotiationEngine (runner/negotiation_engine.py) runs multi-round debate across agents: Round 1 agents answer independently, Round 2+ each agent sees all other agents' previous answers and revises/critiques, final synthesis LLM merges all final-round answers into one comprehensive response; convergence detection stops early if answers reach similarity threshold (default 0.85); wired into Telegram via /goal negotiate keyword shortcut in telegram_bot.py alongside consensus shortcut; confirmed end-to-end through Telegram — 2 rounds fired correctly, research+memory debated Python-vs-JS, synthesis produced merged structured answer combining both perspectives)
+- ✅ Shared Context (tested — SharedContext (runner/shared_context.py) is a SQLite-backed persistent key-value store at ~/.shrri/shared_context.db with three namespaces: global (persists forever), session (scoped to session_id), workflow (scoped to workflow_id, auto-expires after 24h); thread-safe with get/set/all/delete/cleanup_expired/summary API; injected into every agent payload via ExecutionScheduler alongside Scratchpad/bus/runtime — same checkpoint-sanitize pattern applied; confirmed end-to-end through Telegram /goal — memory agent saved 'favourite language=Python' in one workflow, second separate /goal correctly recalled it, proving cross-workflow persistence works)
+- ✅ Dynamic Agent Creation (tested — DynamicAgentFactory generates real Python agent code via LLM at runtime, syntax-checks + normalizes indent, saves to ~/.shrri/dynamic_agents/, auto-loads on restart via load_dynamic_agents(); planner now receives registered dynamic agent types and routes goals to them correctly; confirmed end-to-end through Telegram /goal: created a 'joke' agent that tells real programming jokes, planner correctly emitted type:joke, scheduler ran it, got a real joke response)
 
 ## Phase 7 — Tool Ecosystem
 - ✅ Gmail (read, send, search — existing)
@@ -76,16 +76,16 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ WhatsApp (Baileys bridge — existing)
 - ✅ Telegram (full bot — existing)
 - ✅ Math tool (deterministic AST-safe — existing)
-- ⏳ MCP (standard protocol, not custom mcp_client.py)
-- ⏳ GitHub tool
-- ⏳ Python/Shell/Linux exec (sandboxed)
-- ⏳ ADB (Android)
-- ⏳ Playwright (browser automation)
-- ⏳ SQLite tool
-- ⏳ Files tool
-- ⏳ Weather tool
-- ⏳ Maps tool
-- ⏳ IoT tool
+- ✅ MCP (tested — mcp_client.py singleton connects gmail/filesystem/whatsapp servers at startup, mcp_agent.py + telegram shortcut confirmed end-to-end: list tools returned 30 tools, filesystem:list_directory called real sandbox dir)
+- ✅ GitHub tool (covered by github_agent — real gh CLI + git subprocess, confirmed end-to-end in Phase 5)
+- ✅ Python/Shell/Linux exec (tested — code_sandbox.py Docker sandbox, /goal python: shortcut confirmed end-to-end, 2**10=1024 correct)
+- ✅ ADB (Android) (covered by android_agent — real adb, confirmed end-to-end in Phase 5)
+- ✅ Playwright (browser automation) (covered by browser_agent — real Playwright, confirmed end-to-end in Phase 5)
+- ✅ SQLite tool (tested — sqlite_tool.py + sqlite_agent.py, list tables + SELECT queries confirmed end-to-end through Telegram /goal)
+- ✅ Files tool (tested — file_tool.py + files_agent.py, list/search files confirmed end-to-end through Telegram /goal)
+- ✅ Weather tool (tested — weather_tool.py + weather_agent.py, live wttr.in data confirmed end-to-end through Telegram /goal)
+- ✅ Maps tool (tested — maps_tool.py + maps_agent.py, Nominatim no-API-key place search + directions, confirmed end-to-end through Telegram /goal: Eiffel Tower coords + Chennai→Erode directions link)
+- ✅ IoT tool (covered by iot_agent — paho-mqtt, confirmed end-to-end in Phase 5)
 
 ## Phase 8 — Computer Use Engine
 - ⏳ Desktop Controller

@@ -19,6 +19,7 @@ from runner.message_bus import MessageBus
 from runner.agent_runtime import AgentRuntime
 from runner.agents.supervisor_agent import SupervisorAgent
 from runner.scratchpad import Scratchpad
+from runner.consensus_engine import ConsensusEngine
 from runner.checkpoint_manager import CheckpointManager
 import uuid
 
@@ -51,7 +52,8 @@ class ManagerAgent:
         if self.verbose:
             print(f"[manager_agent] Planning goal: {goal!r}")
 
-        graph, id_map = plan_goal(goal, verbose=self.verbose)
+        dynamic_types = list(self._agent_handlers.keys())
+        graph, id_map = plan_goal(goal, verbose=self.verbose, dynamic_types=dynamic_types)
 
         bus = MessageBus(workflow_id)
         supervisor = SupervisorAgent(bus, verbose=self.verbose)
@@ -77,4 +79,5 @@ class ManagerAgent:
         result["bus"] = bus
         result["runtime"] = runtime
         result["scratchpad"] = scratchpad
+        result["consensus"] = ConsensusEngine(runtime, bus=bus, workflow_id=workflow_id)
         return result

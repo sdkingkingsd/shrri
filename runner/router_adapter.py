@@ -34,6 +34,9 @@ class RouterAdapter:
         # infer one via Model Selection (Phase 3) instead of relying
         # solely on Router's own task="default" bucket.
         cap = capability or _classify(prompt)
+        # Planner prompts are long structured text — force conversation if classify returns writing/medical/finance which hit unreliable providers
+        if cap in ("writing", "medical", "finance") and len(prompt) > 300:
+            cap = "conversation"
 
         try:
             response = self._router.chat(
