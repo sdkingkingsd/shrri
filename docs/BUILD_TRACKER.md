@@ -122,25 +122,25 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ⏳ Tree Search (future/stretch — deferred)
 
 ## Phase 11 — Learning Engine
-- ⏳ Experience Replay
-- ⏳ Skill Generator
-- ⏳ Skill Evolution
-- ⏳ Workflow Recorder
-- ⏳ Dream Mode (extends existing dream_cycle.py)
-- ⏳ AI DNA
-- ⏳ Memory Optimizer
-- ⏳ Prompt Optimizer
-- ⏳ Self Benchmark
+- ✅ Experience Replay (reflection.py ReflectionEngine — Reflexion loop Generator→Reflector→Curator, existing)
+- ✅ Skill Generator (skills.py create_skill+auto_create_from_interaction, existing)
+- ✅ Skill Evolution (skills.py improve_skill+improve_skill_from_correction, existing)
+- ✅ Workflow Recorder (workflow_recorder.py — records+replays successful workflows)
+- ✅ Dream Mode (dream_cycle.py — 3-phase Light/REM/Deep sleep, existing)
+- ✅ AI DNA (ai_dna.py — identity, personality, learned preferences, self-knowledge)
+- ✅ Memory Optimizer (memory_optimizer.py — dedup, promote, compress, forget)
+- ✅ Prompt Optimizer (prompt_optimizer.py — improves prompts using memory+DNA)
+- ✅ Self Benchmark (self_benchmark.py — 5-test suite, 5/5 100%, history tracking)
 
 ## Phase 12 — Evaluation System
-- ⏳ Benchmarks
-- ⏳ Tracing
-- ⏳ Metrics
-- ⏳ Prompt Versions
-- ⏳ Experiments
-- ⏳ Latency tracking
-- ⏳ Model Comparison
-- ⏳ Dashboard
+- ✅ Benchmarks (self_benchmark.py — existing, 5/5)
+- ✅ Tracing (tracer.py — SQLite traces, recent+metrics)
+- ✅ Metrics (metrics.py — provider+benchmark+tool usage)
+- ✅ Prompt Versions (prompt_versions.py — versioned prompts, scoring)
+- ✅ Experiments (experiments.py — A/B testing variants)
+- ✅ Latency tracking (provider_ranking.py — existing)
+- ✅ Model Comparison (model_comparison.py — multi-provider compare)
+- ✅ Dashboard (eval_dashboard.py — unified CLI dashboard)
 
 ## Phase 13 — Security System
 - ✅ Permission Engine (Phase 1, done)
@@ -172,7 +172,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ⏳ Desktop Notification
 - ⏳ Android Notification
 - ⏳ API Response format
-- ⏳ Dashboard
+- ✅ Dashboard (eval_dashboard.py — unified CLI dashboard)
 - ⏳ Logs (structured)
 
 ---
