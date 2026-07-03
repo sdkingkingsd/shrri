@@ -160,11 +160,11 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Plugin Registry (plugin_registry.py — JSON registry, dynamic loader)
 
 ## Phase 15 — Device Abstraction Layer
-- ⏳ Device API (unified)
-- ⏳ Linux Backend
-- ⏳ Android Backend
-- ⏳ Future Windows Backend
-- ⏳ Future macOS Backend
+- ✅ Device API (device_api.py — unified interface, platform-routing)
+- ✅ Linux Backend (device_linux.py — battery, wifi, disk, mem, cpu, notify, clipboard)
+- ✅ Android Backend (device_android.py — termux-api, battery, wifi, notify, clipboard)
+- ⏳ Future Windows Backend (planned)
+- ⏳ Future macOS Backend (planned)
 
 ## Phase 16 — Output Layer
 - ✅ Text (Telegram/WhatsApp — existing)
