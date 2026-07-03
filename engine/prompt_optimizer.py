@@ -42,3 +42,12 @@ def optimize_system_prompt(base_prompt: str) -> str:
         return f"{identity}\n\n{base_prompt}"
     except Exception:
         return base_prompt
+
+
+class PromptOptimizer:
+    """Wrapper class for prompt optimization functions."""
+    def optimize(self, prompt: str, task_type: str = "general") -> str:
+        return optimize_prompt(prompt, task_type)
+
+    def optimize_with_dna(self, prompt: str) -> str:
+        return optimize_with_ai_dna(prompt)

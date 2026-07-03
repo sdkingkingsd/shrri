@@ -53,3 +53,26 @@ def run_full_optimization() -> str:
     results.append(mm.forget_old(days=90, min_importance=4))
     results.append(mm.compress_episodes())
     return "\n".join(results)
+
+
+class MemoryOptimizer:
+    """Wrapper class for memory optimization functions."""
+    def deduplicate(self) -> str:
+        return deduplicate_facts()
+
+    def promote(self) -> str:
+        return promote_episodic_to_facts()
+
+    def compress(self) -> str:
+        return compress_old_memories()
+
+    def forget(self, days: int = 90) -> str:
+        return forget_old_episodic(days)
+
+    def run_all(self) -> dict:
+        return {
+            "deduplicate": self.deduplicate(),
+            "promote": self.promote(),
+            "compress": self.compress(),
+            "forget": self.forget(),
+        }
