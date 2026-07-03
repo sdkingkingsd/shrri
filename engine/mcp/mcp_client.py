@@ -14,7 +14,7 @@ FILESYSTEM_DEFAULT = {
     "name": "filesystem",
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-filesystem",
-              os.path.expanduser("~/shrri_mcp_sandbox")],
+              os.path.expanduser("~/shrri/mcp_sandbox")],
     "description": "SHRRI filesystem sandbox MCP server",
     "enabled": True
 }

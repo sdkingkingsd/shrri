@@ -613,8 +613,8 @@ Summary:"""
                         '{"server": "<server>", "tool": "<tool>", "arguments": {...}}\n'
                         'If none match, respond with exactly: {"server": "none"}\n\n'
                         "IMPORTANT: The filesystem server's sandbox root is the ABSOLUTE path "
-                        "/home/shrridharshan/shrri_mcp_sandbox — always build full absolute "
-                        "paths under that root (e.g. /home/shrridharshan/shrri_mcp_sandbox/hello.txt). "
+                        "/home/shrridharshan/shrri/mcp_sandbox — always build full absolute "
+                        "paths under that root (e.g. /home/shrridharshan/shrri/mcp_sandbox/hello.txt). "
                         "Never use placeholders, relative paths, or invented paths. Use the exact "
                         "argument key names shown in each tool's own schema/description (e.g. "
                         "'path' for filesystem read/write/list tools).\n\n"
