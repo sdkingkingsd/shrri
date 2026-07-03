@@ -15,6 +15,21 @@ logging.basicConfig(level=logging.WARNING)
 
 VOICE_PID_FILE = "/tmp/shrri_voice_live.pid"
 
+
+# Phase 11-16 integrations
+from engine.audit_log import AuditLog
+from engine.policy_engine import PolicyEngine
+from engine.structured_log import StructuredLogger
+from engine.tracer import Tracer
+from engine.device_api import DeviceAPI
+from engine.eval_dashboard import dashboard as eval_dashboard
+
+_audit = AuditLog()
+_policy = PolicyEngine()
+_slog = StructuredLogger()
+_tracer = Tracer()
+_device = DeviceAPI()
+
 def _voicemode_status():
     if not os.path.exists(VOICE_PID_FILE):
         return False
@@ -30,6 +45,115 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Security — only respond to you
     if update.effective_user.id != YOUR_ID:
         return
+
+
+    # ── Slash commands (Phase 11-16) ──────────────────────────────
+    txt = (update.message.text or "").strip()
+
+    if txt == "/dashboard":
+        _audit.log("command", "/dashboard", "ok", "user")
+        await update.message.reply_text(eval_dashboard()[:4000])
+        return
+
+    if txt == "/device":
+        _audit.log("command", "/device", "ok", "user")
+        info = _device.system_info()
+        mem  = _device.memory()
+        cpu  = _device.cpu()
+        bat  = _device.battery()
+        disk = _device.disk()
+        wifi = _device.wifi()
+        lines = [
+            f"🖥 *{info['hostname']}* ({info['os']} {info['machine']})",
+            f"⏱ Uptime: {info.get('uptime','?')}",
+            f"🔋 Battery: {bat.get('percentage','?')} ({bat.get('state','?')})",
+            f"📶 WiFi: {wifi.get('ssid','?')} — {wifi.get('ip','?')}",
+            f"💾 Disk: {disk.get('used','?')}/{disk.get('total','?')} ({disk.get('use_pct','?')} used)",
+            f"🧠 RAM: {mem.get('used','?')}/{mem.get('total','?')} free={mem.get('free','?')}",
+            f"⚡ CPU: {cpu.get('model','?')} ({cpu.get('cores','?')} cores) load={cpu.get('load_avg','?')}",
+        ]
+        await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        return
+
+    if txt == "/benchmark":
+        _audit.log("command", "/benchmark", "ok", "user")
+        await update.message.reply_text("🧪 Running benchmark...")
+        import asyncio as _aio
+        loop = _aio.get_event_loop()
+        def _run_bench():
+            from engine.self_benchmark import SelfBenchmark
+            sb = SelfBenchmark()
+            return sb.run(verbose=False)
+        result = await loop.run_in_executor(None, _run_bench)
+        bar = "█" * result["passed"] + "░" * (result["total"] - result["passed"])
+        await update.message.reply_text(
+            f"🧪 Benchmark: {bar} {result['passed']}/{result['total']} ({result['score']})"
+        )
+        return
+
+    if txt == "/logs":
+        _audit.log("command", "/logs", "ok", "user")
+        await update.message.reply_text(_slog.tail_str(15))
+        return
+
+    if txt == "/audit":
+        _audit.log("command", "/audit", "ok", "user")
+        rows = _audit.recent(10)
+        lines = ["📋 Audit Log (last 10):"]
+        for r in rows:
+            icon = "✅" if r["result"] == "ok" else "❌"
+            lines.append(f"{icon} [{r['timestamp'][11:19]}] {r['action']} → {r['resource']}")
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    if txt.startswith("/policy"):
+        _audit.log("command", "/policy", "ok", "user")
+        import json
+        summary = _policy.summary()
+        lines = ["⚙️ Active Policies:"]
+        for k, v in summary.items():
+            lines.append(f"  {k}: {v}")
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    if txt == "/traces":
+        _audit.log("command", "/traces", "ok", "user")
+        rows = _tracer.recent(8)
+        lines = ["🔍 Recent Traces:"]
+        for r in rows:
+            icon = "✅" if r["success"] else "❌"
+            lines.append(f"{icon} {r['provider']}/{r['model']} {r['latency_ms']:.0f}ms — {r['capability']}")
+        await update.message.reply_text("\n".join(lines))
+        return
+
+    if txt == "/help" or txt == "/commands":
+        await update.message.reply_text(
+            "🤖 *SHRRI Commands*\n\n"
+            "/dashboard — eval dashboard\n"
+            "/device — system status\n"
+            "/benchmark — run 5-test suite\n"
+            "/logs — recent structured logs\n"
+            "/audit — audit trail\n"
+            "/policy — active policies\n"
+            "/traces — recent LLM traces\n"
+            "/goal <task> — run multi-agent goal\n"
+            "/editfile <path>|||<content> — edit file\n"
+            "/readfile <path> — read file\n"
+            "voicemode on/off — toggle voice\n",
+            parse_mode="Markdown"
+        )
+        return
+
+    # ── Policy check before LLM calls ─────────────────────────────
+    allowed, reason = _policy.check("llm_call")
+    if not allowed:
+        _audit.log("llm_call", "blocked", "denied", "policy", {"reason": reason})
+        await update.message.reply_text(f"❌ Blocked by policy: {reason}")
+        return
+
+    # ── Audit + log every real message ────────────────────────────
+    _audit.log("message", txt[:80], "ok", "user")
+    _slog.info("telegram", f"Message received", {"len": len(txt)})
 
     raw_text = (update.message.text or "").strip().lower()
     if raw_text in ("/voicemode on", "voice mode on", "voicemode on"):
