@@ -78,3 +78,15 @@ def dashboard():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7788, reload=True)
+
+# Serve React build
+import os as _os
+_static = _os.path.join(_os.path.dirname(__file__), "..", "static")
+if _os.path.exists(_static):
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    app.mount("/assets", StaticFiles(directory=_os.path.join(_static, "assets")), name="assets")
+
+    @app.get("/")
+    def root():
+        return FileResponse(_os.path.join(_static, "index.html"))
