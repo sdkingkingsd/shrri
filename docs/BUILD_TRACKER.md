@@ -77,7 +77,7 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Telegram (full bot — existing)
 - ✅ Math tool (deterministic AST-safe — existing)
 - ✅ MCP (tested — mcp_client.py singleton connects gmail/filesystem/whatsapp servers at startup, mcp_agent.py + telegram shortcut confirmed end-to-end: list tools returned 30 tools, filesystem:list_directory called real sandbox dir)
-- ✅ GitHub tool (covered by github_agent — real gh CLI + git subprocess, confirmed end-to-end in Phase 5)
+- ✅ GitHub tool (tested — github_tool.py extracted from github_agent, git status/diff/commit/push + gh issues/prs confirmed end-to-end through Telegram /goal git: status)
 - ✅ Python/Shell/Linux exec (tested — code_sandbox.py Docker sandbox, /goal python: shortcut confirmed end-to-end, 2**10=1024 correct)
 - ✅ ADB (Android) (covered by android_agent — real adb, confirmed end-to-end in Phase 5)
 - ✅ Playwright (browser automation) (covered by browser_agent — real Playwright, confirmed end-to-end in Phase 5)
@@ -88,15 +88,15 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ IoT tool (covered by iot_agent — paho-mqtt, confirmed end-to-end in Phase 5)
 
 ## Phase 8 — Computer Use Engine
-- ⏳ Desktop Controller
-- ⏳ Browser Controller
-- ⏳ Mouse/Keyboard Controller
-- ⏳ Clipboard
-- ⏳ Window Manager
-- ⏳ OCR (route to cloud vision — CPU-only risk flagged)
-- ⏳ Vision / Screen Understanding (route to cloud vision)
-- ⏳ Verification Engine
-- ⏳ Recovery Engine
+- ✅ Desktop Controller
+- ✅ Browser Controller (existing browser.py)
+- ✅ Mouse/Keyboard Controller
+- ✅ Clipboard
+- ✅ Window Manager
+- ✅ OCR (routed to cloud vision — gemini-2.5-flash)
+- ✅ Vision / Screen Understanding (gemini-2.5-flash with fallback)
+- ✅ Verification Engine
+- ✅ Recovery Engine
 
 ## Phase 9 — Memory System
 - ✅ Long-term memory (RAG + FTS5 — existing)

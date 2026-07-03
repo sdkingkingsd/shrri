@@ -134,6 +134,14 @@ def _hardcoded_intent(message: str):
         "every week", "weekly remind", "every day", "daily remind", "every morning", "every night"]
     if any(t in msg for t in _remind_triggers) and any(w in msg for w in ["remind", "to ", "notify", "alert"]):
         return {"tool": "reminder", "action": "set", "params": {"query": message}}
+    # Computer Use — desktop control
+    _cu_triggers = ["screenshot", "take a screenshot", "ocr", "read screen",
+        "list windows", "active window", "focus window", "close window",
+        "type:", "press key", "click at", "mouse move", "mouse position",
+        "copy to clipboard", "clipboard paste", "what's in clipboard"]
+    if any(t in msg for t in _cu_triggers):
+        return {"tool": "computer_use", "action": "query", "params": {"query": message}}
+
     return None
 
 
@@ -195,6 +203,7 @@ Tools available:
 - gmail_mark_read: mark email as read
 - gmail_draft: save a draft email
 - gmail_attachment: download attachments from an email
+- computer_use: control the desktop — take screenshots, move mouse, click, type text, press keys, manage clipboard, list/focus/close windows, OCR the screen
 - convsearch: search past conversations with SHRRI (user asking about previous chats, what was said before, past discussions)
 - memory_search: search SHRRI's semantic memory for facts, topics, or things said (e.g. "do you remember when", "what did i say about", "find in memory", "search memory for")
 - chat: general conversation, questions, explanations, help — anything else
@@ -317,6 +326,8 @@ def detect_intent(message: str) -> dict:
         return {"tool": "gmail", "action": "attachment", "params": {"query": message}}
     elif tool == "memory_search":
         return {"tool": "memory_search", "action": "search", "params": {"query": message}}
+    elif tool == "computer_use":
+        return {"tool": "computer_use", "action": "query", "params": {"query": message}}
     elif tool == "convsearch":
         from tools.conversation_log import search_conversations, get_recent
         if any(w in msg for w in ["yesterday", "today", "recent", "last"]):
@@ -817,4 +828,14 @@ Examples:
         elif action == "search":
             return search_emails(query=params.get("query", ""), max_results=5)
 
+    if tool == "computer_use":
+        return _run_computer_use(action, params, message)
+
     return ""
+
+
+# ── Computer Use tool handler (appended by Phase 8 build) ──
+def _run_computer_use(action: str, params: dict, message: str) -> str:
+    from tools.computer_use_tool import computer_use_query
+    query = params.get("query", message)
+    return computer_use_query(query)

@@ -276,6 +276,19 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif user_msg.strip().startswith("/edit "):
         instruction = user_msg.strip()[len("/edit "):].strip()
         response = propose_edit(instruction, engine.router if hasattr(engine, "router") else engine)
+    elif _intent["tool"] == "computer_use":
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, lambda: run_tool(_intent, user_msg))
+        # Send screenshot as image if one was saved
+        if "Screenshot saved:" in response:
+            import re as _re
+            _sp = _re.search(r"Screenshot saved: (.+.png)", response)
+            if _sp:
+                try:
+                    await update.message.reply_photo(photo=open(_sp.group(1).strip(), "rb"))
+                    return
+                except Exception:
+                    pass
     elif _intent["tool"] == "browser":
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, lambda: run_tool(_intent, user_msg))
