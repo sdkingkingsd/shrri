@@ -5,11 +5,20 @@ Serves metrics, traces, logs, device status, memory browser.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import os, sys
+import os, sys, asyncio
 sys.path.insert(0, os.path.expanduser("~/shrri"))
 
 app = FastAPI(title="SHRRI AI OS", version="2.0")
+from engine import SHRRIEngine
+_shrri_engine = SHRRIEngine()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.post("/api/goal")
+async def api_goal(payload: dict):
+    message = payload.get("goal", "")
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: _shrri_engine.chat(message))
+    return {"result": result}
 
 @app.get("/api/status")
 def status():
