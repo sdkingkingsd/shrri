@@ -114,7 +114,9 @@ def increment_use_count(name):
 def auto_create_from_interaction(message, response, agent_used, conn):
     if len(message.split()) < 2 or len(response.split()) < 3:
         return None
-    skip_agents = {'chat', 'unknown'}
+    if not agent_used or str(agent_used).lower() in ('none', 'null', ''):
+        return None
+    skip_agents = {'chat', 'unknown', 'none', 'None', '', None}
     if agent_used in skip_agents:
         return None
     existing = find_relevant_skill(message)
