@@ -169,11 +169,11 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 ## Phase 16 — Output Layer
 - ✅ Text (Telegram/WhatsApp — existing)
 - 🔄 Voice (Piper TTS — existing, needs Tamil-script prompt fix)
-- ⏳ Desktop Notification
-- ⏳ Android Notification
-- ⏳ API Response format
+- ✅ Desktop Notification (desktop_notify.py — notify-send+zenity+xmessage fallback chain)
+- ✅ Android Notification (desktop_notify.py — termux-notification, platform-routed)
+- ✅ API Response format (api_response.py — ok/error/stream, Telegram+CLI formatters)
 - ✅ Dashboard (eval_dashboard.py — unified CLI dashboard)
-- ⏳ Logs (structured)
+- ✅ Logs (structured_log.py — JSON lines, tail, level filter, stderr warnings)
 
 ---
 
