@@ -331,8 +331,8 @@ def detect_intent(message: str) -> dict:
     elif tool == "convsearch":
         from tools.conversation_log import search_conversations, get_recent
         if any(w in msg for w in ["yesterday", "today", "recent", "last"]):
-            return {"tool": "convsearch", "result": get_recent(1)}
-        return {"tool": "convsearch", "result": search_conversations(message)}
+            return {"tool": "convsearch", "action": "search", "params": {}, "result": get_recent(1)}
+        return {"tool": "convsearch", "action": "search", "params": {}, "result": search_conversations(message)}
     elif tool == "youtube":
         return {"tool": "youtube", "action": "summarize", "params": {"query": message}}
     elif tool == "imagegen":
@@ -343,8 +343,11 @@ def detect_intent(message: str) -> dict:
 
 def run_tool(intent: dict, message: str) -> str:
     tool = intent["tool"]
-    action = intent["action"]
-    params = intent["params"]
+    action = intent.get("action")
+    params = intent.get("params", {})
+    # Return pre-computed result if present (e.g. convsearch)
+    if "result" in intent and tool in ("convsearch", "schedule", "news"):
+        return intent["result"] or "No results found."
 
     if tool == "whatsapp":
         action = intent.get("action", "send")
