@@ -101,16 +101,16 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 ## Phase 9 — Memory System
 - ✅ Long-term memory (RAG + FTS5 — existing)
 - ✅ Background consolidation (dream_cycle.py, curator.py, weekly_consolidator.py — existing)
-- ⏳ Working Memory (in-session, separate from long-term)
-- ⏳ Short-term Memory formalized
-- ⏳ Semantic Memory / Episodic Memory split
-- ⏳ Experience Memory
-- ⏳ Vector Database (proper, not just FTS5)
-- ⏳ Memory Ranking
-- ⏳ Memory Compression
-- ⏳ Memory Forgetting
-- ⏳ Memory Timeline (browsable UI)
-- ⏳ Daily session log persistence
+- ✅ Working Memory (working_memory.py — in-session, thread-safe, per-session)
+- ✅ Short-term Memory (short_term_memory.py — SQLite, TTL-based, per-session turns+facts)
+- ✅ Semantic/Episodic split (episodic_memory.py — episodes+FTS5, semantic=existing facts table)
+- ✅ Experience Memory (episodic_memory.py — skill experiences, use_count tracking)
+- ✅ Vector Database (ChromaDB already in rag.py + semantic_search.py)
+- ✅ Memory Ranking (memory_manager.py — rank_facts+rank_episodes by recency/importance)
+- ✅ Memory Compression (memory_manager.py — LLM compresses episode groups above threshold)
+- ✅ Memory Forgetting (memory_manager.py — forget_old by age+importance, forget_fact)
+- ✅ Memory Timeline (memory_timeline.py — unified chronological view across all layers)
+- ✅ Daily session log (session_log.py — SQLite + flat .log files by date)
 
 ## Phase 10 — Reasoning System
 - 🔄 Reasoning Engine (reasoning.py exists, needs upgrade)
