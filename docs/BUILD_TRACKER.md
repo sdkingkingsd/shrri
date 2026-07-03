@@ -113,13 +113,13 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Daily session log (session_log.py — SQLite + flat .log files by date)
 
 ## Phase 10 — Reasoning System
-- 🔄 Reasoning Engine (reasoning.py exists, needs upgrade)
-- ⏳ Reflection Engine
-- ⏳ Self Critic
-- ⏳ Verifier
-- ⏳ Confidence Scoring
-- ⏳ ReAct pattern
-- ⏳ Tree Search (future/stretch)
+- ✅ Reasoning Engine (upgraded — ReAct+repetition detection+unified pipeline)
+- ✅ Reflection Engine (reflection_engine.py — post-task reflection, stores to episodic memory)
+- ✅ Self Critic (self_critic.py — scores response 0-10, rewrites if score<7)
+- ✅ Verifier (verifier.py — factual claim checking, quick rule-based + LLM)
+- ✅ Confidence Scoring (confidence_scoring.py — rule-based fast path + LLM fallback)
+- ✅ ReAct pattern (reasoning.py — existing, wired into reason_and_respond pipeline)
+- ⏳ Tree Search (future/stretch — deferred)
 
 ## Phase 11 — Learning Engine
 - ⏳ Experience Replay

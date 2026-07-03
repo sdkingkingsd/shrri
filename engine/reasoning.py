@@ -100,3 +100,46 @@ def strip_trigger_prefix(message: str) -> str:
 def build_reasoning_prompt(message: str) -> str:
     """Wrap the user's message with the step-by-step + verify instruction."""
     return f"{message}\n{REASONING_PROMPT_SUFFIX}"
+
+
+# ── Phase 10 upgrade: unified reasoning pipeline ──
+
+def reason_and_respond(query: str, router, session_id: str = "",
+                       critique: bool = False, verify: bool = False,
+                       confidence: bool = True) -> dict:
+    """
+    Full Phase 10 reasoning pipeline:
+    1. ReAct reasoning (existing)
+    2. Optional self-critique
+    3. Optional verification
+    4. Confidence scoring
+    Returns: {"response": str, "confidence": dict, "critique": dict, "verified": dict}
+    """
+    from engine.reasoning import build_reasoning_prompt, detect_repetition_loop, truncate_at_first_repeat
+
+    prompt = build_reasoning_prompt(query)
+    raw = router.chat(prompt, task="fast", web_search=False)
+
+    if detect_repetition_loop(raw):
+        raw = truncate_at_first_repeat(raw)
+
+    result = {"response": raw, "confidence": {}, "critique": {}, "verified": {}}
+
+    if confidence:
+        from engine.confidence_scoring import score_confidence
+        result["confidence"] = score_confidence(raw, query)
+
+    if critique and should_critique(raw, query):
+        from engine.self_critic import critique as do_critique
+        crit = do_critique(raw, query)
+        result["critique"] = crit
+        if crit.get("score", 10) < 7:
+            result["response"] = crit.get("improved", raw)
+
+    if verify:
+        from engine.verifier import verify_response
+        result["verified"] = verify_response(result["response"], query)
+        if not result["verified"].get("verified", True):
+            result["response"] = result["verified"].get("corrected", result["response"])
+
+    return result
