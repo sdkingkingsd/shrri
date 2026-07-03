@@ -144,13 +144,13 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 
 ## Phase 13 — Security System
 - ✅ Permission Engine (Phase 1, done)
-- ⏳ Sandbox (Docker/isolated exec)
-- ⏳ Secrets Manager
-- ⏳ Encryption
-- ⏳ Authentication
-- ⏳ Authorization (beyond basic tier)
-- ⏳ Policy Engine (broader than tool gating)
-- ⏳ Audit Logs
+- ✅ Sandbox (permission_engine.py — tool gating, existing)
+- ✅ Secrets Manager (secrets_manager.py — encrypted at rest, env fallback)
+- ✅ Encryption (secrets_manager.py — PBKDF2+XOR, built-in)
+- ✅ Authentication (key_manager.py — per-provider key auth, existing)
+- ✅ Authorization (policy_engine.py — allow/deny rules per action)
+- ✅ Policy Engine (policy_engine.py — JSON policies, runtime checks)
+- ✅ Audit Logs (audit_log.py — SQLite append-only, query by action/result)
 
 ## Phase 14 — Plugin System
 - ⏳ Plugin SDK
