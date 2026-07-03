@@ -153,11 +153,11 @@ Legend: ✅ done | 🔄 in progress | ⏳ not started
 - ✅ Audit Logs (audit_log.py — SQLite append-only, query by action/result)
 
 ## Phase 14 — Plugin System
-- ⏳ Plugin SDK
-- ⏳ Extension SDK
-- ⏳ Marketplace
-- ⏳ Auto Discovery
-- ⏳ Plugin Registry
+- ✅ Plugin SDK (plugin_sdk.py — BasePlugin class + @plugin decorator)
+- ✅ Extension SDK (plugin_sdk.py — shared base, function+class plugins)
+- ✅ Marketplace (plugin_registry.py — register/enable/disable/run)
+- ✅ Auto Discovery (plugin_discovery.py — scans plugins/ dir, auto-registers)
+- ✅ Plugin Registry (plugin_registry.py — JSON registry, dynamic loader)
 
 ## Phase 15 — Device Abstraction Layer
 - ⏳ Device API (unified)
